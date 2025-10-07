@@ -1,0 +1,38 @@
+{
+  "name": "assignment-desk-calendar",
+  "version": "1.0.0",
+  "description": "A web application for managing assignments with a calendar interface.",
+  "main": "src/script.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "keywords": [
+    "calendar",
+    "assignments",
+    "web",
+    "application"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@fullcalendar/daygrid": "^6.1.19",
+    "@fullcalendar/interaction": "^6.1.19",
+    "@fullcalendar/react": "^6.1.19",
+    "@fullcalendar/timegrid": "^6.1.19",
+    "@headlessui/react": "^2.2.9",
+    "moment": "^2.29.1",
+    "next": "^15.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.14",
+    "autoprefixer": "^10.4.21",
+    "live-server": "^1.2.1",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.0"
+  }
+}
