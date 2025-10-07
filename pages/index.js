@@ -9,11 +9,13 @@ export default function Home() {
   const [view, setView] = useState('dayGridMonth');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [events, setEvents] = useState([
     {
       id: '1',
-      title: '10:30a • WiFi–Campus–1006',
+      title: 'WiFi–Campus–1006',
       start: '2025-10-07T10:30:00',
       extendedProps: {
         slug: 'WiFi–Campus–1006',
@@ -25,7 +27,7 @@ export default function Home() {
     },
     {
       id: '2',
-      title: '• Homecoming–Prep–1007',
+      title: 'Homecoming–Prep–1007',
       start: '2025-10-08',
       extendedProps: {
         slug: 'Homecoming–Prep–1007',
@@ -36,6 +38,15 @@ export default function Home() {
       },
     },
   ]);
+
+  const formatTime12Hour = (timeString) => {
+    if (!timeString) return '';
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'pm' : 'am';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes}${ampm}`;
+  };
 
   const handleEventClick = (info) => {
     setSelectedEvent(info.event);
@@ -80,24 +91,66 @@ export default function Home() {
     }
   };
 
+  const handleEdit = () => {
+    setEditingEvent(selectedEvent);
+    setIsEditing(true);
+    // Populate form with event data
+    const event = selectedEvent;
+    const startTime = event.startStr.includes('T') ? event.startStr.split('T')[1].substring(0,5) : '';
+    const endTime = event.endStr ? event.endStr.split('T')[1].substring(0,5) : '';
+    setForm({
+      slug: event.extendedProps.slug,
+      storyType: event.extendedProps.storyType,
+      description: event.extendedProps.description,
+      location: event.extendedProps.location,
+      date: event.startStr.split('T')[0],
+      startTime,
+      endTime,
+      producer: event.extendedProps.producer || '',
+    });
+    setIsOpen(false);
+    setIsNewOpen(true);
+  };
+
   const handleNewEvent = () => {
     const start = form.startTime ? `${form.date}T${form.startTime}` : form.date;
-    const title = form.startTime ? `${form.startTime} • ${form.slug}` : `• ${form.slug}`;
-    const newEvent = {
-      id: Date.now().toString(),
-      title,
-      start,
-      end: form.endTime ? `${form.date}T${form.endTime}` : null,
-      extendedProps: {
-        slug: form.slug,
-        storyType: form.storyType,
-        description: form.description,
-        location: form.location,
-        producer: form.producer,
-        status: 'AVAILABLE',
-      },
-    };
-    setEvents([...events, newEvent]);
+    const title = form.slug || 'New Event';
+    if (isEditing && editingEvent) {
+      // Update existing event
+      setEvents(events.map(e => e.id === editingEvent.id ? {
+        ...e,
+        title,
+        start,
+        end: form.endTime ? `${form.date}T${form.endTime}` : null,
+        extendedProps: {
+          ...e.extendedProps,
+          slug: form.slug,
+          storyType: form.storyType,
+          description: form.description,
+          location: form.location,
+          producer: form.producer,
+        },
+      } : e));
+      setIsEditing(false);
+      setEditingEvent(null);
+    } else {
+      // Create new event
+      const newEvent = {
+        id: Date.now().toString(),
+        title,
+        start,
+        end: form.endTime ? `${form.date}T${form.endTime}` : null,
+        extendedProps: {
+          slug: form.slug,
+          storyType: form.storyType,
+          description: form.description,
+          location: form.location,
+          producer: form.producer,
+          status: 'AVAILABLE',
+        },
+      };
+      setEvents([...events, newEvent]);
+    }
     setForm({ 
       slug: '', 
       storyType: '', 
@@ -143,6 +196,32 @@ export default function Home() {
           events={events}
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
+          eventContent={function(arg) {
+            const title = arg.event.title;
+            const status = arg.event.extendedProps.status;
+            let color = 'gray'; // default
+            if (status === 'AVAILABLE') color = 'green';
+            else if (status === 'CLAIMED') color = 'blue';
+            // add more colors for other statuses if needed
+
+            const dot = `<span style="color: ${color};">●</span> `;
+
+            if (arg.view.type === 'dayGridMonth') {
+              // Check if event has time (not all-day)
+              const hasTime = arg.event.start && arg.event.start.toTimeString() !== '00:00:00 GMT+0000 (Coordinated Universal Time)';
+              if (!hasTime) {
+                // all-day
+                return { html: `${dot}• <strong>${title}</strong>` };
+              } else {
+                // timed
+                const timeStr = arg.event.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase().replace(' ', '');
+                return { html: `${dot}<span style="font-weight: normal;">${timeStr}</span> • <strong>${title}</strong>` };
+              }
+            } else {
+              // week view: just slug in bold
+              return { html: `${dot}<strong>${title}</strong>` };
+            }
+          }}
           editable={true}
           height="100%"
         />
@@ -157,8 +236,8 @@ export default function Home() {
               <div>
                 <p><strong>Slug:</strong> {selectedEvent.extendedProps.slug}</p>
                 <p><strong>Date:</strong> {selectedEvent.startStr.split('T')[0]}</p>
-                {selectedEvent.startStr.includes('T') && <p><strong>Start Time:</strong> {selectedEvent.startStr.split('T')[1].substring(0,5)}</p>}
-                {selectedEvent.endStr && <p><strong>End Time:</strong> {selectedEvent.endStr.split('T')[1].substring(0,5)}</p>}
+                {selectedEvent.startStr.includes('T') && <p><strong>Start Time:</strong> {formatTime12Hour(selectedEvent.startStr.split('T')[1].substring(0,5))}</p>}
+                {selectedEvent.endStr && <p><strong>End Time:</strong> {formatTime12Hour(selectedEvent.endStr.split('T')[1].substring(0,5))}</p>}
                 <p><strong>Type:</strong> {selectedEvent.extendedProps.storyType}</p>
                 <p><strong>Description:</strong> {selectedEvent.extendedProps.description}</p>
                 <p><strong>Location:</strong> {selectedEvent.extendedProps.location}</p>
@@ -167,11 +246,11 @@ export default function Home() {
                 ) : (
                   <p><strong>Unclaimed</strong></p>
                 )}
-                <div className="mt-4">
+                <div className="mt-4 flex gap-2">
                   {selectedEvent.extendedProps.status === 'AVAILABLE' && (
-                    <button onClick={handleClaim} className="bg-blue-600 text-white px-4 py-2 rounded mr-2">Claim</button>
+                    <button onClick={handleClaim} className="bg-blue-600 text-white px-4 py-2 rounded">Claim</button>
                   )}
-                  <button className="bg-gray-600 text-white px-4 py-2 rounded mr-2">Edit</button>
+                  <button onClick={handleEdit} className="bg-orange-600 text-white px-4 py-2 rounded">Edit</button>
                   <button onClick={handleDelete} className="bg-red-600 text-white px-4 py-2 rounded">Delete</button>
                 </div>
               </div>
@@ -186,11 +265,11 @@ export default function Home() {
         </div>
       </Dialog>
 
-      <Dialog open={isNewOpen} onClose={() => setIsNewOpen(false)} className="relative z-50">
+      <Dialog open={isNewOpen} onClose={() => { setIsNewOpen(false); setIsEditing(false); setEditingEvent(null); }} className="relative z-50">
         <div className="fixed inset-0 bg-black bg-opacity-25" />
         <div className="fixed inset-0 flex items-center justify-center p-4">
           <Dialog.Panel className="bg-white rounded-lg p-6 max-w-md w-full">
-            <Dialog.Title className="text-lg font-bold mb-4">New Event</Dialog.Title>
+            <Dialog.Title className="text-lg font-bold mb-4">{isEditing ? 'Edit Event' : 'New Event'}</Dialog.Title>
             <form onSubmit={(e) => { e.preventDefault(); handleNewEvent(); }}>
               <input type="text" placeholder="Slug" value={form.slug} onChange={(e) => setForm({...form, slug: e.target.value})} className="w-full p-2 border mb-2" required />
               <input type="date" placeholder="Date" value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} className="w-full p-2 border mb-2" required />
@@ -200,10 +279,10 @@ export default function Home() {
               <input type="text" placeholder="Location" value={form.location} onChange={(e) => setForm({...form, location: e.target.value})} className="w-full p-2 border mb-2" />
               <input type="text" placeholder="Story Type" value={form.storyType} onChange={(e) => setForm({...form, storyType: e.target.value})} className="w-full p-2 border mb-2" />
               <input type="text" placeholder="Producer" value={form.producer} onChange={(e) => setForm({...form, producer: e.target.value})} className="w-full p-2 border mb-2" />
-              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">Create</button>
+              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">{isEditing ? 'Update' : 'Create'}</button>
             </form>
             <button
-              onClick={() => setIsNewOpen(false)}
+              onClick={() => { setIsNewOpen(false); setIsEditing(false); setEditingEvent(null); }}
               className="mt-4 bg-red-600 text-white px-4 py-2 rounded"
             >
               Cancel
