@@ -64,18 +64,30 @@ export default async function handler(req, res) {
     try {
       const events = req.body;
       console.log('Saving events:', events.length, 'events');
+      console.log('Events data:', JSON.stringify(events, null, 2));
+
       const eventsJson = JSON.stringify(events);
+      console.log('JSON length:', eventsJson.length);
 
       // Upload to blob (overwrites existing file)
-      await put(EVENTS_FILENAME, eventsJson, {
+      console.log('Calling put() with allowOverwrite: true...');
+      const blob = await put(EVENTS_FILENAME, eventsJson, {
         access: 'public',
         contentType: 'application/json',
+        allowOverwrite: true,  // ✅ Allow overwriting existing blob
       });
-      console.log('Events saved successfully');
+
+      console.log('Blob upload successful:', blob.url);
       res.status(200).json({ success: true });
     } catch (error) {
-      console.error('Error saving events:', error);
-      res.status(500).json({ error: 'Failed to save events' });
+      console.error('Error saving events - Full error:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      res.status(500).json({
+        error: 'Failed to save events',
+        details: error.message,
+        stack: error.stack
+      });
     }
   } else {
     res.setHeader('Allow', ['GET', 'POST']);

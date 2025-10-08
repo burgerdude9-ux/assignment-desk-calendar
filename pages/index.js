@@ -93,8 +93,36 @@ export default function Home() {
     setEvents(events.map(e => e.id === info.event.id ? {...e, start: newStart} : e));
   };
 
-  const handleDelete = () => {
-    setEvents(events.filter(e => e.id !== selectedEvent.id));
+  const handleDelete = async () => {
+    const eventId = selectedEvent.id;
+    console.log('Deleting event:', eventId);
+    
+    // Remove from local state
+    const updatedEvents = events.filter(e => e.id !== eventId);
+    setEvents(updatedEvents);
+    
+    // Explicitly save to API
+    try {
+      console.log('Saving updated events after delete...');
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedEvents)
+      });
+      
+      if (response.ok) {
+        console.log('Event successfully deleted from storage');
+      } else {
+        console.error('Failed to delete event from storage');
+        // Revert local state on error
+        setEvents(events);
+      }
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      // Revert local state on error
+      setEvents(events);
+    }
+    
     setIsOpen(false);
   };
 
