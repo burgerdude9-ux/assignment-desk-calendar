@@ -12,32 +12,7 @@ export default function Home() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
-  const [events, setEvents] = useState([
-    {
-      id: '1',
-      title: 'WiFi–Campus–1006',
-      start: '2025-10-07T10:30:00',
-      extendedProps: {
-        slug: 'WiFi–Campus–1006',
-        storyType: 'VO_SOT',
-        description: 'Students report poor speeds; IT response pending.',
-        location: 'Blanton Hall 2F',
-        status: 'AVAILABLE',
-      },
-    },
-    {
-      id: '2',
-      title: 'Homecoming–Prep–1007',
-      start: '2025-10-08',
-      extendedProps: {
-        slug: 'Homecoming–Prep–1007',
-        storyType: 'PACKAGE',
-        description: 'Preparation for homecoming event.',
-        location: 'Campus Green',
-        status: 'CLAIMED',
-      },
-    },
-  ]);
+  const [events, setEvents] = useState([]);
 
   const formatTime12Hour = (timeString) => {
     if (!timeString) return '';
@@ -64,13 +39,53 @@ export default function Home() {
     producer: '' 
   });
 
+  // Load events from API on component mount
   useEffect(() => {
-    const saved = localStorage.getItem('events');
-    if (saved) setEvents(JSON.parse(saved));
+    fetchEvents();
   }, []);
 
+  const fetchEvents = async () => {
+    try {
+      console.log('Fetching events from API...');
+      const response = await fetch('/api/events');
+      console.log('API response status:', response.status);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Loaded events:', data.length);
+        setEvents(data);
+      } else {
+        console.error('Failed to fetch events:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching events:', error);
+    }
+  };
+
+  const saveEvents = async (newEvents) => {
+    try {
+      console.log('Saving events to API...', newEvents.length);
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newEvents),
+      });
+      console.log('Save response status:', response.status);
+      if (!response.ok) {
+        console.error('Failed to save events');
+      } else {
+        console.log('Events saved successfully');
+      }
+    } catch (error) {
+      console.error('Error saving events:', error);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem('events', JSON.stringify(events));
+    if (events.length > 0) {
+      saveEvents(events);
+    }
   }, [events]);
 
   const handleEventDrop = (info) => {

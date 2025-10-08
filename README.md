@@ -1,46 +1,67 @@
 # Assignment Desk Calendar
 
-## Overview
-The Assignment Desk Calendar is a web application for managing newsroom assignments in a calendar view. It allows creating dated pitches (events) with required fields, showing multiple slugs per day, and enabling reporters to claim items while editors approve and manage status.
+A collaborative calendar application for managing newsroom assignments with shared Vercel Blob storage.
 
 ## Features
-- Month and Week calendar views
-- Create new events with slug, story type, description, location
-- Click events to view details and perform actions (claim, edit, delete)
-- Status management: AVAILABLE, CLAIMED, IN_PROGRESS, APPROVED, COMPLETED
-- Responsive design with Tailwind CSS
+- 📅 **Month and Week calendar views**
+- ➕ **Create new events** with slug, story type, description, location
+- 👆 **Click events** to view details and perform actions (claim, edit, delete)
+- 📊 **Status management**: AVAILABLE, CLAIMED, IN_PROGRESS, APPROVED, COMPLETED
+- 🔄 **Shared data storage** - everyone sees the same events via Vercel Blob
+- 📱 **Responsive design** with Tailwind CSS
 
-## Installation
-1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/assignment-desk-calendar.git
-   ```
-2. Navigate to the project directory:
-   ```
-   cd assignment-desk-calendar
-   ```
-3. Install the dependencies:
-   ```
-   npm install
-   ```
+## Quick Setup
 
-## Usage
-1. Start the development server:
-   ```
-   npm run dev
-   ```
-2. Open http://localhost:3000 in your web browser.
-3. Use the calendar to view events, create new ones, and manage assignments.
+### 1. Install Dependencies
+```bash
+npm install
+```
+
+### 2. Deploy to Vercel
+```bash
+# Install Vercel CLI if you haven't
+npm i -g vercel
+
+# Deploy
+vercel
+```
+
+### 3. Enable Vercel Blob
+- In your Vercel project dashboard, go to **Storage** → **Blob** → **Create Database**
+- This enables file storage for your project
+
+### 4. Redeploy (if needed)
+```bash
+vercel --prod
+```
+
+## How It Works
+- **Data Storage**: Events are stored as a JSON file in Vercel Blob storage
+- **Sharing**: All users access the same blob file, so changes are visible to everyone
+- **Initialization**: First load automatically creates sample events if none exist
 
 ## Technologies
-- Next.js
-- React
-- Tailwind CSS
-- FullCalendar
-- Headless UI
+- **Next.js** - React framework
+- **Vercel Blob** - File storage for shared data
+- **FullCalendar** - Calendar component
+- **Tailwind CSS** - Styling
+- **Headless UI** - Accessible components
+
+## API Routes
+- `GET /api/events` - Fetch all events from blob storage
+- `POST /api/events` - Save events array to blob storage
+
+## Limitations
+- **Concurrent Edits**: If multiple users edit simultaneously, the last save wins
+- **File Storage**: Uses blob storage rather than a database (simpler but less robust)
+- **No Real-time**: Changes require page refresh to see updates from other users
 
 ## Contributing
-Contributions are welcome! Please submit a pull request or open an issue for any suggestions or improvements.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test locally
+5. Submit a pull request
 
 ## License
-This project is licensed under the MIT License. See the LICENSE file for details.
+MIT License

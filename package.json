@@ -23,6 +23,7 @@
     "@fullcalendar/react": "^6.1.19",
     "@fullcalendar/timegrid": "^6.1.19",
     "@headlessui/react": "^2.2.9",
+    "@vercel/blob": "^2.0.0",
     "moment": "^2.29.1",
     "next": "^15.5.4",
     "react": "^19.2.0",
