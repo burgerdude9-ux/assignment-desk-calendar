@@ -245,7 +245,7 @@ export default function Home() {
     <div className="h-screen flex flex-col">
       <header className="bg-red-600 text-white p-4">
         <div className="flex items-center">
-          <img src="/logo/logo.png" alt="Montclair News Lab" className="h-12 w-12 object-contain mr-4" />
+          <img src="/logo/logo.png" alt="Montclair News Lab" className="h-16 w-16 object-contain mr-4" />
           <div className="flex-1">
             <h1 className="text-2xl font-bold">{`Montclair News Lab\u00A0\u00A0\u00A0Assignment Desk`}</h1>
             <div className="mt-2 flex items-center justify-between">
