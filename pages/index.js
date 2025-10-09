@@ -41,6 +41,11 @@ export default function Home() {
     return title.length > maxLength ? title.substring(0, maxLength) + '...' : title;
   };
 
+  const truncateDesc = (desc, maxLength = 120) => {
+    if (!desc) return '';
+    return desc.length > maxLength ? desc.substring(0, maxLength) + '...' : desc;
+  };
+
   const handleEventClick = (info) => {
     setSelectedEvent(info.event);
     setIsOpen(true);
@@ -281,8 +286,25 @@ export default function Home() {
                 return { html: `${dot}<span style="font-weight: normal;">${timeStr}</span> • <strong>${displayTitle}</strong>` };
               }
             } else {
-              // week view: just slug in bold
-              return { html: `${dot}<strong>${displayTitle}</strong>` };
+              // week view: show more details inside the event box
+              const timeStr = arg.event.start ? arg.event.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase().replace(' ', '') + ' • ' : '';
+              const fullTitle = title;
+              const storyType = arg.event.extendedProps.storyType || '';
+              const location = arg.event.extendedProps.location || '';
+              const producer = arg.event.extendedProps.producer ? `Producer: ${arg.event.extendedProps.producer}` : '';
+              const statusText = arg.event.extendedProps.status ? `${arg.event.extendedProps.status}` : '';
+              const desc = truncateDesc(arg.event.extendedProps.description, 140);
+
+              const metaParts = [];
+              if (storyType) metaParts.push(storyType);
+              if (location) metaParts.push(location);
+              if (producer) metaParts.push(producer);
+              if (statusText) metaParts.push(statusText);
+
+              const metaLine = metaParts.length ? `<div style="font-size:0.82rem;color:#333;margin-top:2px;">${metaParts.join(' • ')}</div>` : '';
+              const descLine = desc ? `<div style="font-size:0.78rem;color:#555;margin-top:4px;">${desc}</div>` : '';
+
+              return { html: `${dot}<div style="font-weight:600;">${timeStr}<span>${fullTitle}</span></div>${metaLine}${descLine}` };
             }
           }}
           editable={true}
