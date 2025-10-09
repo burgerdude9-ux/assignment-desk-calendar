@@ -23,6 +23,10 @@ export default function Home() {
     return `${displayHour}:${minutes}${ampm}`;
   };
 
+  const truncateTitle = (title, maxLength = 15) => {
+    return title.length > maxLength ? title.substring(0, maxLength) + '...' : title;
+  };
+
   const handleEventClick = (info) => {
     setSelectedEvent(info.event);
     setIsOpen(true);
@@ -248,21 +252,22 @@ export default function Home() {
             // add more colors for other statuses if needed
 
             const dot = `<span style="color: ${color};">●</span> `;
+            const displayTitle = truncateTitle(title);
 
             if (arg.view.type === 'dayGridMonth') {
               // Check if event has time (not all-day)
               const hasTime = arg.event.start && arg.event.start.toTimeString() !== '00:00:00 GMT+0000 (Coordinated Universal Time)';
               if (!hasTime) {
                 // all-day
-                return { html: `${dot}• <strong>${title}</strong>` };
+                return { html: `${dot}• <strong>${displayTitle}</strong>` };
               } else {
                 // timed
                 const timeStr = arg.event.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase().replace(' ', '');
-                return { html: `${dot}<span style="font-weight: normal;">${timeStr}</span> • <strong>${title}</strong>` };
+                return { html: `${dot}<span style="font-weight: normal;">${timeStr}</span> • <strong>${displayTitle}</strong>` };
               }
             } else {
               // week view: just slug in bold
-              return { html: `${dot}<strong>${title}</strong>` };
+              return { html: `${dot}<strong>${displayTitle}</strong>` };
             }
           }}
           editable={true}
