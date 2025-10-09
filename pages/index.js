@@ -13,6 +13,7 @@ export default function Home() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [events, setEvents] = useState([]);
+  const [isListOpen, setIsListOpen] = useState(false);
 
   // Reference to the FullCalendar instance so we can call its API to switch views
   const calendarRef = useRef(null);
@@ -66,6 +67,16 @@ export default function Home() {
   useEffect(() => {
     fetchEvents();
   }, []);
+
+  // Close the list panel on Escape
+  useEffect(() => {
+    if (!isListOpen) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setIsListOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isListOpen]);
 
   const fetchEvents = async () => {
     try {
@@ -248,6 +259,12 @@ export default function Home() {
             Week
           </button>
           <button
+            onClick={() => setIsListOpen(true)}
+            className={`mr-4 px-4 py-2 rounded ${isListOpen ? 'bg-red-800' : 'bg-red-500'}`}
+          >
+            List
+          </button>
+          <button
             onClick={() => setIsNewOpen(true)}
             className="bg-green-600 px-4 py-2 rounded"
           >
@@ -255,6 +272,52 @@ export default function Home() {
           </button>
         </div>
       </header>
+      {/* Left-side events list panel */}
+      {isListOpen && (
+        <div className="fixed inset-y-0 left-0 w-80 max-w-full z-50">
+          <div className="h-full bg-white shadow-lg overflow-hidden flex flex-col">
+            <div className="p-4 border-b flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-bold">Events</h2>
+                <p className="text-sm text-gray-500">{events.length} total</p>
+              </div>
+              <button aria-label="Close events list" onClick={() => setIsListOpen(false)} className="text-gray-600 hover:text-gray-900">✕</button>
+            </div>
+            <div className="p-2 overflow-auto">
+              {events.length === 0 ? (
+                <div className="p-4 text-gray-500">No events</div>
+              ) : (
+                // sort chronologically
+                [...events].sort((a,b) => new Date(a.start) - new Date(b.start)).map(e => (
+                  <div key={e.id} className="p-3 border-b hover:bg-gray-50 cursor-pointer" onClick={() => {
+                    // navigate calendar to date and open details
+                    try {
+                      if (calendarRef.current && calendarRef.current.getApi) {
+                        calendarRef.current.getApi().gotoDate(e.start);
+                      }
+                    } catch (err) {
+                      console.error('Failed to navigate to date', err);
+                    }
+                    // set a selectedEvent-like object that the dialog expects
+                    setSelectedEvent({
+                      id: e.id,
+                      extendedProps: e.extendedProps || {},
+                      startStr: e.start,
+                      endStr: e.end || ''
+                    });
+                    setIsListOpen(false);
+                    setIsOpen(true);
+                  }}>
+                    <div className="text-sm text-gray-600">{new Date(e.start).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: e.start.includes('T') ? 'short' : undefined })}</div>
+                    <div className="font-medium text-gray-900">{e.title || e.extendedProps?.slug || 'Untitled'}</div>
+                    {e.extendedProps?.location && <div className="text-sm text-gray-500">{e.extendedProps.location}</div>}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex-1 p-4">
         <FullCalendar
           ref={calendarRef}
