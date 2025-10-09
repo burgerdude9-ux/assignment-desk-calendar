@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -13,6 +13,20 @@ export default function Home() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [events, setEvents] = useState([]);
+
+  // Reference to the FullCalendar instance so we can call its API to switch views
+  const calendarRef = useRef(null);
+
+  // When the `view` state changes (Month/Week buttons), instruct FullCalendar to change view
+  useEffect(() => {
+    if (calendarRef.current && typeof calendarRef.current.getApi === 'function') {
+      try {
+        calendarRef.current.getApi().changeView(view);
+      } catch (e) {
+        console.error('Failed to change calendar view:', e);
+      }
+    }
+  }, [view]);
 
   const formatTime12Hour = (timeString) => {
     if (!timeString) return '';
@@ -238,8 +252,9 @@ export default function Home() {
       </header>
       <div className="flex-1 p-4">
         <FullCalendar
+          ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView={view}
+          initialView={'dayGridMonth'}
           events={events}
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
