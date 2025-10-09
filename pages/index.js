@@ -244,7 +244,10 @@ export default function Home() {
   return (
     <div className="h-screen flex flex-col">
       <header className="bg-red-600 text-white p-4">
-        <h1 className="text-2xl font-bold">Montclair News Lab Assignment Desk</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Montclair News Lab Assignment Desk</h1>
+          <img src="/logo/logo.png" alt="Montclair News Lab" className="h-10 w-10 object-contain ml-4" />
+        </div>
         <div className="mt-2 flex items-center justify-between">
           <div className="flex items-center">
             <button
