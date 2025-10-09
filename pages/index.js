@@ -245,31 +245,36 @@ export default function Home() {
     <div className="h-screen flex flex-col">
       <header className="bg-red-600 text-white p-4">
         <h1 className="text-2xl font-bold">Montclair News Lab Assignment Desk</h1>
-        <div className="mt-2 flex items-center">
-          <button
-            onClick={() => setView('dayGridMonth')}
-            className={`mr-2 px-4 py-2 rounded ${view === 'dayGridMonth' ? 'bg-red-800' : 'bg-red-500'}`}
-          >
-            Month
-          </button>
-          <button
-            onClick={() => setView('timeGridWeek')}
-            className={`mr-4 px-4 py-2 rounded ${view === 'timeGridWeek' ? 'bg-red-800' : 'bg-red-500'}`}
-          >
-            Week
-          </button>
-          <button
-            onClick={() => setIsListOpen(true)}
-            className={`mr-4 px-4 py-2 rounded ${isListOpen ? 'bg-red-800' : 'bg-red-500'}`}
-          >
-            List
-          </button>
-          <button
-            onClick={() => setIsNewOpen(true)}
-            className="bg-green-600 px-4 py-2 rounded"
-          >
-            New Event
-          </button>
+        <div className="mt-2 flex items-center justify-between">
+          <div className="flex items-center">
+            <button
+              onClick={() => setView('dayGridMonth')}
+              className={`mr-2 px-4 py-2 rounded ${view === 'dayGridMonth' ? 'bg-red-800' : 'bg-red-500'}`}
+            >
+              Month
+            </button>
+            <button
+              onClick={() => setView('timeGridWeek')}
+              className={`mr-4 px-4 py-2 rounded ${view === 'timeGridWeek' ? 'bg-red-800' : 'bg-red-500'}`}
+            >
+              Week
+            </button>
+            <button
+              onClick={() => setIsListOpen(true)}
+              className={`mr-4 px-4 py-2 rounded ${isListOpen ? 'bg-red-800' : 'bg-red-500'}`}
+            >
+              List
+            </button>
+          </div>
+
+          <div className="flex items-center">
+            <button
+              onClick={() => setIsNewOpen(true)}
+              className="bg-green-600 px-4 py-2 rounded"
+            >
+              New Event
+            </button>
+          </div>
         </div>
       </header>
       {/* Left-side events list panel */}
