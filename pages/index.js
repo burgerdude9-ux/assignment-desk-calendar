@@ -295,16 +295,51 @@ export default function Home() {
               const statusText = arg.event.extendedProps.status ? `${arg.event.extendedProps.status}` : '';
               const desc = truncateDesc(arg.event.extendedProps.description, 140);
 
-              const metaParts = [];
-              if (storyType) metaParts.push(storyType);
-              if (location) metaParts.push(location);
-              if (producer) metaParts.push(producer);
-              if (statusText) metaParts.push(statusText);
+              // Week view layout: line1 = time + slug (white)
+              // line2 = location (light gray), line3 = truncated description (lighter gray)
+              const descShort = truncateDesc(arg.event.extendedProps.description, 120);
 
-              const metaLine = metaParts.length ? `<div style="font-size:0.82rem;color:#333;margin-top:2px;">${metaParts.join(' • ')}</div>` : '';
-              const descLine = desc ? `<div style="font-size:0.78rem;color:#555;margin-top:4px;">${desc}</div>` : '';
+              const line1 = `<div style="color:#fff;font-weight:700;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${timeStr}<span>${fullTitle}</span></div>`;
+              const line2 = location ? `<div style="font-size:0.82rem;color:#d1d5db;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:3px;">${location}</div>` : '';
+              // include full description in data-full for post-render fitting
+              const line3 = descShort ? `<div class="fd-desc" data-full="${(arg.event.extendedProps.description || '').replace(/"/g, '&quot;')}"><span>${descShort}</span></div>` : '';
 
-              return { html: `${dot}<div style="font-weight:600;">${timeStr}<span>${fullTitle}</span></div>${metaLine}${descLine}` };
+              const container = `${line1}${line2}${line3}`;
+              return { html: container };
+            }
+          }}
+          eventDidMount={(info) => {
+            // After the event is rendered, try to fit the description into the available space
+            try {
+              const descEl = info.el.querySelector('.fd-desc');
+              if (!descEl) return;
+
+              const inner = descEl.querySelector('span');
+              const full = descEl.dataset.full || '';
+              if (!full) return;
+
+              // Set full text first
+              inner.textContent = full;
+
+              // If it fits, nothing to do
+              if (descEl.scrollHeight <= descEl.clientHeight) return;
+
+              // Binary search for maximum characters that fit
+              let lo = 0, hi = full.length, best = '';
+              while (lo <= hi) {
+                const mid = Math.floor((lo + hi) / 2);
+                inner.textContent = full.slice(0, mid) + '...';
+                if (descEl.scrollHeight <= descEl.clientHeight) {
+                  best = inner.textContent;
+                  lo = mid + 1;
+                } else {
+                  hi = mid - 1;
+                }
+              }
+              inner.textContent = best || full.slice(0, 20) + '...';
+            } catch (e) {
+              // non-fatal
+              console.error('eventDidMount fit error', e);
             }
           }}
           editable={true}
