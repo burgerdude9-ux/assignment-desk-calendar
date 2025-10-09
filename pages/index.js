@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -13,7 +13,16 @@ export default function Home() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [events, setEvents] = useState([]);
+  const [engageEvents, setEngageEvents] = useState([]);
   const [isListOpen, setIsListOpen] = useState(false);
+  const [keywordFilter, setKeywordFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [tempStartDate, setTempStartDate] = useState('');
+  const [tempEndDate, setTempEndDate] = useState('');
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [claimProducer, setClaimProducer] = useState('');
 
   // Reference to the FullCalendar instance so we can call its API to switch views
   const calendarRef = useRef(null);
@@ -116,6 +125,23 @@ export default function Home() {
     }
   };
 
+  const fetchEngageEvents = async () => {
+    try {
+      console.log('Fetching Engage events...');
+      const response = await fetch('/api/scrape-engage');
+      if (response.ok) {
+        const engageEventsData = await response.json();
+        console.log('Fetched Engage events:', engageEventsData.length);
+        setEngageEvents(engageEventsData);
+        setIsListOpen(true); // Open the list after fetching
+      } else {
+        console.error('Failed to fetch Engage events');
+      }
+    } catch (error) {
+      console.error('Error fetching Engage events:', error);
+    }
+  };
+
   useEffect(() => {
     if (events.length > 0) {
       saveEvents(events);
@@ -161,9 +187,38 @@ export default function Home() {
   };
 
   const handleClaim = () => {
-    const producer = window.prompt('Enter producer name:');
-    if (producer) {
-      setEvents(events.map(e => e.id === selectedEvent.id ? {...e, extendedProps: {...e.extendedProps, status: 'CLAIMED', producer}} : e));
+    setIsClaiming(true);
+    setClaimProducer('');
+  };
+
+  const handleClaimSubmit = async () => {
+    if (claimProducer.trim()) {
+      const updatedEvents = events.map(e => e.id === selectedEvent.id ? {...e, extendedProps: {...e.extendedProps, status: 'CLAIMED', producer: claimProducer.trim()}} : e);
+      setEvents(updatedEvents);
+      
+      // Save to API
+      try {
+        console.log('Saving updated events after claim...');
+        const response = await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedEvents)
+        });
+        
+        if (response.ok) {
+          console.log('Event successfully claimed and saved');
+        } else {
+          console.error('Failed to save claimed event');
+          // Revert local state on error
+          setEvents(events);
+        }
+      } catch (error) {
+        console.error('Error claiming event:', error);
+        // Revert local state on error
+        setEvents(events);
+      }
+      
+      setIsClaiming(false);
       setIsOpen(false);
     }
   };
@@ -241,6 +296,78 @@ export default function Home() {
     setIsNewOpen(false);
   };
 
+  const handleDateFilterChange = (value) => {
+    if (value === 'custom') {
+      // Initialize temp values with current custom dates
+      setTempStartDate(customStartDate);
+      setTempEndDate(customEndDate);
+    }
+    setDateFilter(value);
+  };
+
+  const handleApplyCustomDates = () => {
+    setCustomStartDate(tempStartDate);
+    setCustomEndDate(tempEndDate);
+  };
+
+  // Memoize filtered events for performance
+  const filteredEvents = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return [...events, ...engageEvents].filter(e => {
+      const eventDate = new Date(e.start);
+      eventDate.setHours(0, 0, 0, 0);
+
+      // Exclude past events
+      if (eventDate < today) return false;
+
+      // Keyword filter: check title, description, location
+      if (keywordFilter && 
+          !e.title.toLowerCase().includes(keywordFilter.toLowerCase()) &&
+          !e.extendedProps?.description?.toLowerCase().includes(keywordFilter.toLowerCase()) &&
+          !e.extendedProps?.location?.toLowerCase().includes(keywordFilter.toLowerCase())) {
+        return false;
+      }
+
+      // Date filter
+      if (dateFilter === 'today') {
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        if (eventDate < today || eventDate >= tomorrow) return false;
+      } else if (dateFilter === 'thisWeek') {
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay());
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 7);
+        if (eventDate < weekStart || eventDate >= weekEnd) return false;
+      } else if (dateFilter === 'nextWeek') {
+        const nextWeekStart = new Date(today);
+        nextWeekStart.setDate(today.getDate() + (7 - today.getDay()));
+        const nextWeekEnd = new Date(nextWeekStart);
+        nextWeekEnd.setDate(nextWeekStart.getDate() + 7);
+        if (eventDate < nextWeekStart || eventDate >= nextWeekEnd) return false;
+      } else if (dateFilter === 'thisMonth') {
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+        if (eventDate < monthStart || eventDate >= monthEnd) return false;
+      } else if (dateFilter === 'nextMonth') {
+        const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+        const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 1);
+        if (eventDate < nextMonthStart || eventDate >= nextMonthEnd) return false;
+      } else if (dateFilter === 'custom') {
+        if (customStartDate && customEndDate) {
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          end.setDate(end.getDate() + 1); // Include the end date
+          if (eventDate < start || eventDate >= end) return false;
+        }
+      }
+
+      return true;
+    }).sort((a, b) => new Date(a.start) - new Date(b.start));
+  }, [events, engageEvents, keywordFilter, dateFilter, customStartDate, customEndDate]);
+
   return (
     <div className="h-screen flex flex-col">
       <header className="bg-red-600 text-white p-4">
@@ -252,28 +379,31 @@ export default function Home() {
               <div className="flex items-center">
                 <button
                   onClick={() => setView('dayGridMonth')}
-                  className={`mr-2 px-4 py-2 rounded ${view === 'dayGridMonth' ? 'bg-red-800' : 'bg-red-500'}`}
+                  className={`mr-2 px-4 py-2 rounded border border-red-900 ${view === 'dayGridMonth' ? 'bg-red-800' : 'bg-red-500 hover:bg-red-800'}`}
                 >
                   Month
                 </button>
                 <button
                   onClick={() => setView('timeGridWeek')}
-                  className={`mr-4 px-4 py-2 rounded ${view === 'timeGridWeek' ? 'bg-red-800' : 'bg-red-500'}`}
+                  className={`mr-2 px-4 py-2 rounded border border-red-900 ${view === 'timeGridWeek' ? 'bg-red-800' : 'bg-red-500 hover:bg-red-800'}`}
                 >
                   Week
                 </button>
                 <button
                   onClick={() => setIsListOpen(true)}
-                  className={`mr-4 px-4 py-2 rounded ${isListOpen ? 'bg-red-800' : 'bg-red-500'}`}
+                  className={`mr-2 px-4 py-2 rounded border border-red-900 ${isListOpen ? 'bg-red-800' : 'bg-red-500 hover:bg-red-800'}`}
                 >
                   List
                 </button>
-              </div>
-
-              <div className="flex items-center">
+                <button
+                  onClick={fetchEngageEvents}
+                  className="mr-2 px-4 py-2 rounded border border-red-900 bg-red-500 hover:bg-red-800"
+                >
+                  Engage
+                </button>
                 <button
                   onClick={() => setIsNewOpen(true)}
-                  className="bg-green-600 px-4 py-2 rounded"
+                  className="mr-2 bg-white text-red-600 border border-red-900 px-4 py-2 rounded hover:bg-red-50"
                 >
                   New Event
                 </button>
@@ -289,16 +419,63 @@ export default function Home() {
             <div className="p-4 border-b flex items-start justify-between">
               <div>
                 <h2 className="text-lg font-bold">Events</h2>
-                <p className="text-sm text-gray-500">{events.length} total</p>
+                <p className="text-sm text-gray-500">{filteredEvents.length} total</p>
               </div>
               <button aria-label="Close events list" onClick={() => setIsListOpen(false)} className="text-gray-600 hover:text-gray-900">✕</button>
             </div>
+            <div className="p-4 border-b">
+              <div className="flex flex-col space-y-2">
+                <input
+                  type="text"
+                  placeholder="Search by keyword..."
+                  value={keywordFilter}
+                  onChange={(e) => setKeywordFilter(e.target.value)}
+                  className="w-full p-2 border rounded"
+                />
+                <select
+                  value={dateFilter}
+                  onChange={(e) => handleDateFilterChange(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="all">All Upcoming</option>
+                  <option value="today">Today</option>
+                  <option value="thisWeek">This Week</option>
+                  <option value="nextWeek">Next Week</option>
+                  <option value="thisMonth">This Month</option>
+                  <option value="nextMonth">Next Month</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+                {dateFilter === 'custom' && (
+                  <div className="space-y-2">
+                    <input
+                      type="date"
+                      placeholder="Start Date"
+                      value={tempStartDate}
+                      onChange={(e) => setTempStartDate(e.target.value)}
+                      className="w-full p-2 border rounded"
+                    />
+                    <input
+                      type="date"
+                      placeholder="End Date"
+                      value={tempEndDate}
+                      onChange={(e) => setTempEndDate(e.target.value)}
+                      className="w-full p-2 border rounded"
+                    />
+                    <button
+                      onClick={handleApplyCustomDates}
+                      className="w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="p-2 overflow-auto">
-              {events.length === 0 ? (
-                <div className="p-4 text-gray-500">No events</div>
+              {filteredEvents.length === 0 ? (
+                <div className="p-4 text-gray-500">No events match the filters</div>
               ) : (
-                // sort chronologically
-                [...events].sort((a,b) => new Date(a.start) - new Date(b.start)).map(e => (
+                filteredEvents.map(e => (
                   <div key={e.id} className="p-3 border-b hover:bg-gray-50 cursor-pointer" onClick={() => {
                     // navigate calendar to date and open details
                     try {
@@ -338,11 +515,9 @@ export default function Home() {
           eventDrop={handleEventDrop}
           eventContent={function(arg) {
             const title = arg.event.title;
-            const status = arg.event.extendedProps.status;
-            let color = 'gray'; // default
-            if (status === 'AVAILABLE') color = 'green';
-            else if (status === 'CLAIMED') color = 'blue';
-            // add more colors for other statuses if needed
+            const status = arg.event.extendedProps.status || 'AVAILABLE';
+            let color = 'green'; // default to green for available
+            if (status === 'CLAIMED') color = 'blue';
 
             const dot = `<span style="color: ${color};">●</span> `;
             const displayTitle = truncateTitle(title);
@@ -424,36 +599,58 @@ export default function Home() {
         <div className="fixed inset-0 bg-black bg-opacity-25" />
         <div className="fixed inset-0 flex items-center justify-center p-4">
           <Dialog.Panel className="bg-white rounded-lg p-6 max-w-md w-full">
-            <Dialog.Title className="text-lg font-bold mb-4">Event Details</Dialog.Title>
+            <div className="flex justify-between items-center mb-4">
+              <Dialog.Title className="text-lg font-bold">{isClaiming ? 'Claim Event' : 'Event Details'}</Dialog.Title>
+              <button onClick={() => { setIsOpen(false); setIsClaiming(false); }} className="text-gray-500 hover:text-gray-700 text-2xl leading-none">&times;</button>
+            </div>
             {selectedEvent && (
               <div>
-                <p><strong>Slug:</strong> {selectedEvent.extendedProps.slug}</p>
-                <p><strong>Date:</strong> {selectedEvent.startStr.split('T')[0]}</p>
-                {selectedEvent.startStr.includes('T') && <p><strong>Start Time:</strong> {formatTime12Hour(selectedEvent.startStr.split('T')[1].substring(0,5))}</p>}
-                {selectedEvent.endStr && <p><strong>End Time:</strong> {formatTime12Hour(selectedEvent.endStr.split('T')[1].substring(0,5))}</p>}
-                <p><strong>Type:</strong> {selectedEvent.extendedProps.storyType}</p>
-                <p><strong>Description:</strong> {selectedEvent.extendedProps.description}</p>
-                <p><strong>Location:</strong> {selectedEvent.extendedProps.location}</p>
-                {selectedEvent.extendedProps.producer && selectedEvent.extendedProps.status === 'CLAIMED' ? (
-                  <p><strong>Producer:</strong> {selectedEvent.extendedProps.producer}</p>
+                {isClaiming ? (
+                  <div>
+                    <p><strong>Slug:</strong> {selectedEvent.extendedProps.slug}</p>
+                    <p><strong>Date:</strong> {selectedEvent.startStr.split('T')[0]}</p>
+                    {selectedEvent.startStr.includes('T') && <p><strong>Start Time:</strong> {formatTime12Hour(selectedEvent.startStr.split('T')[1].substring(0,5))}</p>}
+                    {selectedEvent.endStr && <p><strong>End Time:</strong> {formatTime12Hour(selectedEvent.endStr.split('T')[1].substring(0,5))}</p>}
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Producer Name</label>
+                      <input
+                        type="text"
+                        value={claimProducer}
+                        onChange={(e) => setClaimProducer(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleClaimSubmit()}
+                        placeholder="Enter producer name"
+                        className="w-full p-2 border rounded"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <button onClick={handleClaimSubmit} className="bg-white text-red-600 border border-red-800 px-4 py-2 rounded hover:bg-red-50">Claim Event</button>
+                      <button onClick={() => setIsClaiming(false)} className="bg-gray-600 text-white px-4 py-2 rounded">Cancel</button>
+                    </div>
+                  </div>
                 ) : (
-                  <p><strong>Unclaimed</strong></p>
+                  <div>
+                    <p><strong>Slug:</strong> {selectedEvent.extendedProps.slug}</p>
+                    <p><strong>Date:</strong> {selectedEvent.startStr.split('T')[0]}</p>
+                    {selectedEvent.startStr.includes('T') && <p><strong>Start Time:</strong> {formatTime12Hour(selectedEvent.startStr.split('T')[1].substring(0,5))}</p>}
+                    {selectedEvent.endStr && <p><strong>End Time:</strong> {formatTime12Hour(selectedEvent.endStr.split('T')[1].substring(0,5))}</p>}
+                    <p><strong>Type:</strong> {selectedEvent.extendedProps.storyType}</p>
+                    <p><strong>Description:</strong> {selectedEvent.extendedProps.description}</p>
+                    <p><strong>Location:</strong> {selectedEvent.extendedProps.location}</p>
+                    {selectedEvent.extendedProps.producer && selectedEvent.extendedProps.status === 'CLAIMED' ? (
+                      <p><strong>Producer:</strong> {selectedEvent.extendedProps.producer}</p>
+                    ) : (
+                      <p><strong>Available</strong></p>
+                    )}
+                    <div className="mt-4 flex gap-2">
+                      <button onClick={handleEdit} className="bg-white text-red-600 border border-red-800 px-4 py-2 rounded hover:bg-red-50">Edit</button>
+                      <button onClick={handleClaim} disabled={!!selectedEvent.extendedProps.producer} className="bg-white text-red-600 border border-red-800 px-4 py-2 rounded hover:bg-red-50">Claim</button>
+                      <button onClick={handleDelete} className="bg-red-600 text-white px-4 py-2 rounded">Delete</button>
+                    </div>
+                  </div>
                 )}
-                <div className="mt-4 flex gap-2">
-                  {selectedEvent.extendedProps.status === 'AVAILABLE' && (
-                    <button onClick={handleClaim} className="bg-blue-600 text-white px-4 py-2 rounded">Claim</button>
-                  )}
-                  <button onClick={handleEdit} className="bg-orange-600 text-white px-4 py-2 rounded">Edit</button>
-                  <button onClick={handleDelete} className="bg-red-600 text-white px-4 py-2 rounded">Delete</button>
-                </div>
               </div>
             )}
-            <button
-              onClick={() => setIsOpen(false)}
-              className="mt-4 bg-red-600 text-white px-4 py-2 rounded"
-            >
-              Close
-            </button>
           </Dialog.Panel>
         </div>
       </Dialog>
@@ -472,7 +669,7 @@ export default function Home() {
               <input type="text" placeholder="Location" value={form.location} onChange={(e) => setForm({...form, location: e.target.value})} className="w-full p-2 border mb-2" />
               <input type="text" placeholder="Story Type" value={form.storyType} onChange={(e) => setForm({...form, storyType: e.target.value})} className="w-full p-2 border mb-2" />
               <input type="text" placeholder="Producer" value={form.producer} onChange={(e) => setForm({...form, producer: e.target.value})} className="w-full p-2 border mb-2" />
-              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">{isEditing ? 'Update' : 'Create'}</button>
+              <button type="submit" className="bg-white text-red-600 border border-red-800 px-4 py-2 rounded hover:bg-red-50">{isEditing ? 'Update' : 'Create'}</button>
             </form>
             <button
               onClick={() => { setIsNewOpen(false); setIsEditing(false); setEditingEvent(null); }}
