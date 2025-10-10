@@ -56,6 +56,11 @@ export default function Home() {
     return `${displayHour}:${minutes}${ampm}`;
   };
 
+  const formatSlug = (str) => {
+    if (!str) return '';
+    return str.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  };
+
   const truncateTitle = (title, maxLength = 15) => {
     return title.length > maxLength ? title.substring(0, maxLength) + '...' : title;
   };
@@ -65,9 +70,59 @@ export default function Home() {
     return desc.length > maxLength ? desc.substring(0, maxLength) + '...' : desc;
   };
 
-  const formatSlug = (slug) => {
-    if (!slug) return '';
-    return slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+  const isUnscheduledEvent = (event) => {
+    return event.extendedProps?.isPackage || !event.start;
+  };
+
+  const isScheduledEvent = (event) => {
+    return !isUnscheduledEvent(event);
+  };
+
+  const eventContent = (arg) => {
+    const title = formatSlug(arg.event.title);
+    const status = arg.event.extendedProps.status || 'AVAILABLE';
+    let color = 'green'; // default to green for available
+    if (status === 'CLAIMED') color = 'blue';
+    else if (status === 'IN_PROGRESS') color = 'orange';
+    else if (status === 'APPROVED') color = 'purple';
+    else if (status === 'COMPLETED') color = 'gray';
+
+    const dot = `<span style="color: ${color};">●</span> `;
+    const displayTitle = truncateTitle(title);
+
+    if (arg.view.type === 'dayGridMonth') {
+      // Check if event has time (not all-day)
+      const hasTime = arg.event.start && arg.event.start.toTimeString() !== '00:00:00 GMT+0000 (Coordinated Universal Time)' && !arg.event.allDay;
+      if (!hasTime) {
+        // all-day
+        return { html: `${dot}• <strong>${displayTitle}</strong>` };
+      } else {
+        // timed
+        const timeStr = arg.event.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase().replace(' ', '');
+        return { html: `${dot}<span style="font-weight: normal;">${timeStr}</span> • <strong>${displayTitle}</strong>` };
+      }
+    } else {
+      // week view: show more details inside the event box
+      const timeStr = arg.event.allDay ? 'All Day • ' : (arg.event.start ? arg.event.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase().replace(' ', '') + ' • ' : '');
+      const fullTitle = title;
+      const storyType = arg.event.extendedProps.storyType || '';
+      const location = arg.event.extendedProps.location || '';
+      const producer = arg.event.extendedProps.producer ? `Producer: ${arg.event.extendedProps.producer}` : '';
+      const statusText = arg.event.extendedProps.status ? `${arg.event.extendedProps.status}` : '';
+      const desc = truncateDesc(arg.event.extendedProps.description, 140);
+
+      // Week view layout: line1 = time + slug (white)
+      // line2 = location (light gray), line3 = truncated description (lighter gray)
+      const descShort = truncateDesc(arg.event.extendedProps.description, 120);
+
+      const line1 = `<div style="color:#fff;font-weight:700;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${timeStr}<span>${fullTitle}</span></div>`;
+      const line2 = location ? `<div style="font-size:0.82rem;color:#d1d5db;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:3px;">${location}</div>` : '';
+      // include full description in data-full for post-render fitting
+      const line3 = descShort ? `<div class="fd-desc" data-full="${(arg.event.extendedProps.description || '').replace(/"/g, '&quot;')}"><span>${descShort}</span></div>` : '';
+
+      const container = `${line1}${line2}${line3}`;
+      return { html: container };
+    }
   };
 
   const validateForm = () => {
@@ -104,7 +159,7 @@ export default function Home() {
     storyType: '', 
     description: '', 
     location: '', 
-    date: new Date().toISOString().split('T')[0], 
+    date: '', // Leave empty for news packages
     startHour: '', 
     startMin: '', 
     startAmpm: '', 
@@ -366,6 +421,7 @@ export default function Home() {
     const title = form.slug || 'New Event';
     const hasDate = !!form.date;
     const hasTime = !!startTime;
+    const isUnscheduled = !hasDate; // Events with no date are unscheduled
     
     if (isEditing && editingEvent) {
       // Update existing event - create clean updated event
@@ -382,7 +438,7 @@ export default function Home() {
           location: form.location,
           producer: form.producer,
           status: form.status,
-          isPackage: !hasDate && !hasTime // Flag for undated packages
+          isPackage: isUnscheduled // Flag for unscheduled events (no date)
         },
       };
       setEvents(events.map(e => e.id === editingEvent.id ? updatedEvent : e));
@@ -403,7 +459,7 @@ export default function Home() {
           location: form.location,
           producer: form.producer,
           status: form.status,
-          isPackage: !hasDate && !hasTime // Flag for undated packages
+          isPackage: isUnscheduled // Flag for unscheduled events (no date)
         },
       };
       setEvents([...events, newEvent]);
@@ -413,7 +469,7 @@ export default function Home() {
       storyType: '', 
       description: '', 
       location: '', 
-      date: new Date().toISOString().split('T')[0], 
+      date: '', // Leave empty for news packages
       startHour: '', 
       startMin: '', 
       startAmpm: '', 
@@ -512,22 +568,22 @@ export default function Home() {
 
       return true;
     }).sort((a, b) => {
-      // Undated packages (no date) come FIRST - completely separate from dated events
-      const aIsUndated = a.extendedProps?.isPackage || !a.start;
-      const bIsUndated = b.extendedProps?.isPackage || !b.start;
+      // Unscheduled events (no date) come FIRST - completely separate from scheduled events
+      const aIsUnscheduled = isUnscheduledEvent(a);
+      const bIsUnscheduled = isUnscheduledEvent(b);
       
-      // If one is undated and the other is dated, undated comes first
-      if (aIsUndated && !bIsUndated) return -1;
-      if (!aIsUndated && bIsUndated) return 1;
+      // If one is unscheduled and the other is scheduled, unscheduled comes first
+      if (aIsUnscheduled && !bIsUnscheduled) return -1;
+      if (!aIsUnscheduled && bIsUnscheduled) return 1;
       
-      // If both are undated, sort by title/slug
-      if (aIsUndated && bIsUndated) {
+      // If both are unscheduled, sort by title/slug
+      if (aIsUnscheduled && bIsUnscheduled) {
         const aTitle = formatSlug(a.title || a.extendedProps?.slug) || 'Untitled';
         const bTitle = formatSlug(b.title || b.extendedProps?.slug) || 'Untitled';
         return aTitle.localeCompare(bTitle);
       }
       
-      // Both are dated events - sort by date (earliest first)
+      // Both are scheduled events - sort by date (earliest first)
       const aDate = new Date(a.start);
       const bDate = new Date(b.start);
       return aDate - bDate;
@@ -578,7 +634,7 @@ export default function Home() {
                       storyType: '', 
                       description: '', 
                       location: '', 
-                      date: new Date().toISOString().split('T')[0], 
+                      date: '', // Leave empty for news packages
                       startHour: '', 
                       startMin: '', 
                       startAmpm: '', 
@@ -757,7 +813,7 @@ export default function Home() {
                       onClick={() => setUnscheduledExpanded(!unscheduledExpanded)}
                       className="w-full flex items-center justify-between px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium border-b"
                     >
-                      <span>📦 Unscheduled Events ({filteredEvents.filter(e => e.extendedProps?.isPackage || !e.start).length})</span>
+                      <span>📦 Unscheduled Events ({filteredEvents.filter(isUnscheduledEvent).length})</span>
                       <svg 
                         className={`w-4 h-4 transition-transform ${unscheduledExpanded ? 'rotate-180' : ''}`} 
                         fill="none" 
@@ -767,9 +823,9 @@ export default function Home() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    {unscheduledExpanded && filteredEvents.filter(e => e.extendedProps?.isPackage || !e.start).length > 0 && (
+                    {unscheduledExpanded && filteredEvents.filter(isUnscheduledEvent).length > 0 && (
                       <div className="bg-gray-50">
-                        {filteredEvents.filter(e => e.extendedProps?.isPackage || !e.start).map(e => (
+                        {filteredEvents.filter(isUnscheduledEvent).map(e => (
                           <div key={e.id} className="p-3 border-b hover:bg-gray-100 cursor-pointer" onClick={() => {
                             // Handle undated packages
                             setSelectedEvent({
@@ -818,7 +874,7 @@ export default function Home() {
                       onClick={() => setScheduledExpanded(!scheduledExpanded)}
                       className="w-full flex items-center justify-between px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium border-b"
                     >
-                      <span>📅 Scheduled Events ({filteredEvents.filter(e => !(e.extendedProps?.isPackage || !e.start)).length})</span>
+                      <span>📅 Scheduled Events ({filteredEvents.filter(isScheduledEvent).length})</span>
                       <svg 
                         className={`w-4 h-4 transition-transform ${scheduledExpanded ? 'rotate-180' : ''}`} 
                         fill="none" 
@@ -828,9 +884,9 @@ export default function Home() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    {scheduledExpanded && filteredEvents.filter(e => !(e.extendedProps?.isPackage || !e.start)).length > 0 && (
+                    {scheduledExpanded && filteredEvents.filter(isScheduledEvent).length > 0 && (
                       <div className="bg-gray-50">
-                        {filteredEvents.filter(e => !(e.extendedProps?.isPackage || !e.start)).map(e => (
+                        {filteredEvents.filter(isScheduledEvent).map(e => (
                           <div key={e.id} className="p-3 border-b hover:bg-gray-100 cursor-pointer" onClick={() => {
                             // Regular event - navigate calendar to date and open details
                             try {
@@ -895,52 +951,7 @@ export default function Home() {
           events={events.filter(e => e.start)} // Only show events with dates on calendar
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
-          eventContent={function(arg) {
-            const title = formatSlug(arg.event.title);
-            const status = arg.event.extendedProps.status || 'AVAILABLE';
-            let color = 'green'; // default to green for available
-            if (status === 'CLAIMED') color = 'blue';
-            else if (status === 'IN_PROGRESS') color = 'orange';
-            else if (status === 'APPROVED') color = 'purple';
-            else if (status === 'COMPLETED') color = 'gray';
-
-            const dot = `<span style="color: ${color};">●</span> `;
-            const displayTitle = truncateTitle(title);
-
-            if (arg.view.type === 'dayGridMonth') {
-              // Check if event has time (not all-day)
-              const hasTime = arg.event.start && arg.event.start.toTimeString() !== '00:00:00 GMT+0000 (Coordinated Universal Time)' && !arg.event.allDay;
-              if (!hasTime) {
-                // all-day
-                return { html: `${dot}• <strong>${displayTitle}</strong>` };
-              } else {
-                // timed
-                const timeStr = arg.event.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase().replace(' ', '');
-                return { html: `${dot}<span style="font-weight: normal;">${timeStr}</span> • <strong>${displayTitle}</strong>` };
-              }
-            } else {
-              // week view: show more details inside the event box
-              const timeStr = arg.event.allDay ? 'All Day • ' : (arg.event.start ? arg.event.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase().replace(' ', '') + ' • ' : '');
-              const fullTitle = title;
-              const storyType = arg.event.extendedProps.storyType || '';
-              const location = arg.event.extendedProps.location || '';
-              const producer = arg.event.extendedProps.producer ? `Producer: ${arg.event.extendedProps.producer}` : '';
-              const statusText = arg.event.extendedProps.status ? `${arg.event.extendedProps.status}` : '';
-              const desc = truncateDesc(arg.event.extendedProps.description, 140);
-
-              // Week view layout: line1 = time + slug (white)
-              // line2 = location (light gray), line3 = truncated description (lighter gray)
-              const descShort = truncateDesc(arg.event.extendedProps.description, 120);
-
-              const line1 = `<div style="color:#fff;font-weight:700;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${timeStr}<span>${fullTitle}</span></div>`;
-              const line2 = location ? `<div style="font-size:0.82rem;color:#d1d5db;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:3px;">${location}</div>` : '';
-              // include full description in data-full for post-render fitting
-              const line3 = descShort ? `<div class="fd-desc" data-full="${(arg.event.extendedProps.description || '').replace(/"/g, '&quot;')}"><span>${descShort}</span></div>` : '';
-
-              const container = `${line1}${line2}${line3}`;
-              return { html: container };
-            }
-          }}
+          eventContent={eventContent}
           eventDidMount={(info) => {
             // After the event is rendered, try to fit the description into the available space
             try {
