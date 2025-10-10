@@ -28,6 +28,7 @@ export default function Home() {
   const [claimProducer, setClaimProducer] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoadingEngage, setIsLoadingEngage] = useState(false);
+  const [listMode, setListMode] = useState('calendar'); // 'calendar' or 'engage'
   const [formErrors, setFormErrors] = useState({});
 
   // Reference to the FullCalendar instance so we can call its API to switch views
@@ -74,9 +75,7 @@ export default function Home() {
       errors.slug = 'Slug is required';
     }
     
-    if (!form.date) {
-      errors.date = 'Date is required';
-    }
+    // Date is now optional - news packages can be created without specific dates
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -175,6 +174,7 @@ export default function Home() {
         const engageEventsData = await response.json();
         console.log('Fetched Engage events:', engageEventsData.length);
         setEngageEvents(engageEventsData);
+        setListMode('engage');
         setIsListOpen(true); // Open the list after fetching
         setErrorMessage('');
       } else {
@@ -277,8 +277,8 @@ export default function Home() {
     setIsEditing(true);
     // Populate form with event data
     const event = selectedEvent;
-    const startTime = event.startStr.includes('T') ? event.startStr.split('T')[1].substring(0,5) : '';
-    const endTime = event.endStr ? event.endStr.split('T')[1].substring(0,5) : '';
+    const startTime = event.startStr && event.startStr.includes('T') ? event.startStr.split('T')[1].substring(0,5) : '';
+    const endTime = event.endStr && event.endStr.includes('T') ? event.endStr.split('T')[1].substring(0,5) : '';
     
     // Parse start time
     let startHour = '', startMin = '', startAmpm = '';
@@ -305,7 +305,7 @@ export default function Home() {
       storyType: event.extendedProps.storyType,
       description: event.extendedProps.description,
       location: event.extendedProps.location,
-      date: event.startStr.split('T')[0],
+      date: event.startStr ? event.startStr.split('T')[0] : '',
       startHour,
       startMin,
       startAmpm,
@@ -337,25 +337,30 @@ export default function Home() {
       endTime = `${hour24.toString().padStart(2, '0')}:${form.endMin}`;
     }
     
-    const start = startTime ? `${form.date}T${startTime}` : form.date;
     const title = form.slug || 'New Event';
+    const hasDate = !!form.date;
+    const hasTime = !!startTime;
+    
     if (isEditing && editingEvent) {
       // Update existing event
-      setEvents(events.map(e => e.id === editingEvent.id ? {
-        ...e,
+      const updatedEvent = {
+        ...editingEvent,
         title,
-        start,
-        end: endTime ? `${form.date}T${endTime}` : null,
+        start: hasDate ? (hasTime ? `${form.date}T${startTime}` : form.date) : null,
+        end: hasDate && endTime ? `${form.date}T${endTime}` : null,
+        allDay: hasDate && !hasTime,
         extendedProps: {
-          ...e.extendedProps,
+          ...editingEvent.extendedProps,
           slug: form.slug,
           storyType: form.storyType,
           description: form.description,
           location: form.location,
           producer: form.producer,
           status: form.status,
+          isPackage: !hasDate && !hasTime // Flag for undated packages
         },
-      } : e));
+      };
+      setEvents(events.map(e => e.id === editingEvent.id ? updatedEvent : e));
       setIsEditing(false);
       setEditingEvent(null);
     } else {
@@ -363,8 +368,9 @@ export default function Home() {
       const newEvent = {
         id: Date.now().toString(),
         title,
-        start,
-        end: endTime ? `${form.date}T${endTime}` : null,
+        start: hasDate ? (hasTime ? `${form.date}T${startTime}` : form.date) : null,
+        end: hasDate && endTime ? `${form.date}T${endTime}` : null,
+        allDay: hasDate && !hasTime,
         extendedProps: {
           slug: form.slug,
           storyType: form.storyType,
@@ -372,6 +378,7 @@ export default function Home() {
           location: form.location,
           producer: form.producer,
           status: form.status,
+          isPackage: !hasDate && !hasTime // Flag for undated packages
         },
       };
       setEvents([...events, newEvent]);
@@ -413,7 +420,23 @@ export default function Home() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return [...events, ...engageEvents].filter(e => {
+    // Choose which events to show based on list mode
+    const eventsToFilter = listMode === 'engage' ? engageEvents : events;
+
+    return eventsToFilter.filter(e => {
+      // For engage events, don't filter by date since they might be from different sources
+      if (listMode === 'engage') {
+        // Only apply keyword filter for engage events
+        if (keywordFilter && 
+            !e.title.toLowerCase().includes(keywordFilter.toLowerCase()) &&
+            !e.extendedProps?.description?.toLowerCase().includes(keywordFilter.toLowerCase()) &&
+            !e.extendedProps?.location?.toLowerCase().includes(keywordFilter.toLowerCase())) {
+          return false;
+        }
+        return true;
+      }
+
+      // For calendar events, apply all filters
       const eventDate = new Date(e.start);
       eventDate.setHours(0, 0, 0, 0);
 
@@ -463,8 +486,20 @@ export default function Home() {
       }
 
       return true;
-    }).sort((a, b) => new Date(a.start) - new Date(b.start));
-  }, [events, engageEvents, keywordFilter, dateFilter, customStartDate, customEndDate]);
+    }).sort((a, b) => {
+      // Undated packages (no date) come first
+      const aIsPackage = a.extendedProps?.isPackage || !a.start;
+      const bIsPackage = b.extendedProps?.isPackage || !b.start;
+      
+      if (aIsPackage && !bIsPackage) return -1;
+      if (!aIsPackage && bIsPackage) return 1;
+      
+      // Then sort by date (earliest first)
+      const aDate = a.start ? new Date(a.start) : new Date('2099-12-31');
+      const bDate = b.start ? new Date(b.start) : new Date('2099-12-31');
+      return aDate - bDate;
+    });
+  }, [events, engageEvents, keywordFilter, dateFilter, customStartDate, customEndDate, listMode]);
 
   return (
     <div className="h-screen flex flex-col">
@@ -488,8 +523,11 @@ export default function Home() {
                   Week
                 </button>
                 <button
-                  onClick={() => setIsListOpen(true)}
-                  className={`mr-2 px-4 py-2 rounded border border-red-900 ${isListOpen ? 'bg-red-800' : 'bg-red-500 hover:bg-red-800'}`}
+                  onClick={() => {
+                    setListMode('calendar');
+                    setIsListOpen(true);
+                  }}
+                  className={`mr-2 px-4 py-2 rounded border border-red-900 ${isListOpen && listMode === 'calendar' ? 'bg-red-800' : 'bg-red-500 hover:bg-red-800'}`}
                 >
                   List
                 </button>
@@ -525,7 +563,7 @@ export default function Home() {
           <div className="h-full bg-white shadow-lg overflow-hidden flex flex-col">
             <div className="p-4 border-b flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-bold">Events</h2>
+                <h2 className="text-lg font-bold">{listMode === 'engage' ? 'Engage Events' : 'Calendar Events'}</h2>
                 <p className="text-sm text-gray-500">{filteredEvents.length} total</p>
               </div>
               <button aria-label="Close events list" onClick={() => setIsListOpen(false)} className="text-gray-600 hover:text-gray-900">✕</button>
@@ -539,20 +577,22 @@ export default function Home() {
                   onChange={(e) => setKeywordFilter(e.target.value)}
                   className="w-full p-2 border rounded"
                 />
-                <select
-                  value={dateFilter}
-                  onChange={(e) => handleDateFilterChange(e.target.value)}
-                  className="w-full p-2 border rounded"
-                >
-                  <option value="all">All Upcoming</option>
-                  <option value="today">Today</option>
-                  <option value="thisWeek">This Week</option>
-                  <option value="nextWeek">Next Week</option>
-                  <option value="thisMonth">This Month</option>
-                  <option value="nextMonth">Next Month</option>
-                  <option value="custom">Custom Range</option>
-                </select>
-                {dateFilter === 'custom' && (
+                {listMode === 'calendar' && (
+                  <select
+                    value={dateFilter}
+                    onChange={(e) => handleDateFilterChange(e.target.value)}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="all">All Upcoming</option>
+                    <option value="today">Today</option>
+                    <option value="thisWeek">This Week</option>
+                    <option value="nextWeek">Next Week</option>
+                    <option value="thisMonth">This Month</option>
+                    <option value="nextMonth">Next Month</option>
+                    <option value="custom">Custom Range</option>
+                  </select>
+                )}
+                {listMode === 'calendar' && dateFilter === 'custom' && (
                   <div className="space-y-2">
                     <input
                       type="date"
@@ -584,7 +624,7 @@ export default function Home() {
               ) : (
                 filteredEvents.map(e => (
                   <div key={e.id} className="p-3 border-b hover:bg-gray-50 cursor-pointer" onClick={() => {
-                    if (e.id.startsWith('engage-')) {
+                    if (listMode === 'engage') {
                       // Import Engage event: populate form and open new event modal
                       const title = e.title || '';
                       const desc = e.extendedProps.description || '';
@@ -629,32 +669,98 @@ export default function Home() {
                         endMin,
                         endAmpm,
                         producer: '',
+                        status: 'AVAILABLE',
                       });
                       setIsNewOpen(true);
                       setIsListOpen(false);
                     } else {
-                      // navigate calendar to date and open details
-                      try {
-                        if (calendarRef.current && calendarRef.current.getApi) {
-                          calendarRef.current.getApi().gotoDate(e.start);
+                      // Handle calendar events
+                      if (e.extendedProps?.isPackage) {
+                        // Undated package - open details modal
+                        setSelectedEvent({
+                          id: e.id,
+                          extendedProps: e.extendedProps || {},
+                          startStr: null,
+                          endStr: '',
+                          allDay: false
+                        });
+                        setIsListOpen(false);
+                        setIsOpen(true);
+                      } else {
+                        // Regular event - navigate calendar to date and open details
+                        try {
+                          if (calendarRef.current && calendarRef.current.getApi) {
+                            calendarRef.current.getApi().gotoDate(e.start);
+                          }
+                        } catch (err) {
+                          console.error('Failed to navigate to date', err);
                         }
-                      } catch (err) {
-                        console.error('Failed to navigate to date', err);
+                        // set a selectedEvent-like object that the dialog expects
+                        setSelectedEvent({
+                          id: e.id,
+                          extendedProps: e.extendedProps || {},
+                          startStr: e.start,
+                          endStr: e.end || ''
+                        });
+                        setIsListOpen(false);
+                        setIsOpen(true);
                       }
-                      // set a selectedEvent-like object that the dialog expects
-                      setSelectedEvent({
-                        id: e.id,
-                        extendedProps: e.extendedProps || {},
-                        startStr: e.start,
-                        endStr: e.end || ''
-                      });
-                      setIsListOpen(false);
-                      setIsOpen(true);
                     }
                   }}>
-                    <div className="text-sm text-gray-600">{new Date(e.start).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: e.start.includes('T') ? 'short' : undefined })}</div>
-                    <div className="font-medium text-gray-900">{formatSlug(e.title || e.extendedProps?.slug) || 'Untitled'}</div>
-                    {e.extendedProps?.location && <div className="text-sm text-gray-500">{e.extendedProps.location}</div>}
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">{formatSlug(e.title || e.extendedProps?.slug) || 'Untitled'}</div>
+                        {listMode === 'engage' ? (
+                          <div className="text-sm text-gray-600 mt-1">
+                            <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium mr-2">ENGAGE</span>
+                            {e.extendedProps?.storyType && <span className="text-gray-500">{e.extendedProps.storyType}</span>}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-gray-600 mt-1">
+                            {e.extendedProps?.producer && <span className="mr-2">{e.extendedProps.producer}</span>}
+                            {e.extendedProps?.status && (
+                              <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                                e.extendedProps.status === 'AVAILABLE' ? 'bg-green-100 text-green-800' :
+                                e.extendedProps.status === 'CLAIMED' ? 'bg-yellow-100 text-yellow-800' :
+                                e.extendedProps.status === 'IN_PROGRESS' ? 'bg-orange-100 text-orange-800' :
+                                e.extendedProps.status === 'APPROVED' ? 'bg-purple-100 text-purple-800' :
+                                e.extendedProps.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {e.extendedProps.status}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <div className="text-sm text-gray-500 mt-1">
+                          {listMode === 'engage' ? (
+                            e.extendedProps?.description ? (
+                              <div className="line-clamp-2">{e.extendedProps.description}</div>
+                            ) : null
+                          ) : (
+                            <>
+                              {e.extendedProps?.isPackage ? (
+                                <span className="text-purple-600 font-medium">News Package</span>
+                              ) : (
+                                <>
+                                  {e.start ? new Date(e.start).toLocaleDateString() : 'Undated Package'}
+                                  {e.start && e.start.includes('T') && ` at ${new Date(e.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
+                                  {e.end && e.end !== e.start && ` - ${new Date(e.end).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
+                                </>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        {e.extendedProps?.location && <div className="text-sm text-gray-500">{e.extendedProps.location}</div>}
+                      </div>
+                      {listMode === 'engage' && (
+                        <div className="ml-2 text-blue-600">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
@@ -667,7 +773,7 @@ export default function Home() {
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView={'dayGridMonth'}
-          events={events}
+          events={events.filter(e => e.start)} // Only show events with dates on calendar
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
           eventContent={function(arg) {
@@ -684,7 +790,7 @@ export default function Home() {
 
             if (arg.view.type === 'dayGridMonth') {
               // Check if event has time (not all-day)
-              const hasTime = arg.event.start && arg.event.start.toTimeString() !== '00:00:00 GMT+0000 (Coordinated Universal Time)';
+              const hasTime = arg.event.start && arg.event.start.toTimeString() !== '00:00:00 GMT+0000 (Coordinated Universal Time)' && !arg.event.allDay;
               if (!hasTime) {
                 // all-day
                 return { html: `${dot}• <strong>${displayTitle}</strong>` };
@@ -695,7 +801,7 @@ export default function Home() {
               }
             } else {
               // week view: show more details inside the event box
-              const timeStr = arg.event.start ? arg.event.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase().replace(' ', '') + ' • ' : '';
+              const timeStr = arg.event.allDay ? 'All Day • ' : (arg.event.start ? arg.event.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase().replace(' ', '') + ' • ' : '');
               const fullTitle = title;
               const storyType = arg.event.extendedProps.storyType || '';
               const location = arg.event.extendedProps.location || '';
@@ -791,10 +897,12 @@ export default function Home() {
                 ) : (
                   <div>
                     <p><strong>Slug:</strong> {formatSlug(selectedEvent.extendedProps.slug)}</p>
-                    <p><strong>Date:</strong> {selectedEvent.startStr.split('T')[0]}</p>
-                    {selectedEvent.startStr.includes('T') && <p><strong>Start Time:</strong> {formatTime12Hour(selectedEvent.startStr.split('T')[1].substring(0,5))}</p>}
-                    {selectedEvent.endStr && <p><strong>End Time:</strong> {formatTime12Hour(selectedEvent.endStr.split('T')[1].substring(0,5))}</p>}
-                    <p><strong>Type:</strong> {selectedEvent.extendedProps.storyType}</p>
+                    {selectedEvent.startStr && <p><strong>Date:</strong> {selectedEvent.startStr.split('T')[0]}</p>}
+                    {selectedEvent.startStr && selectedEvent.startStr.includes('T') && !selectedEvent.allDay && <p><strong>Start Time:</strong> {formatTime12Hour(selectedEvent.startStr.split('T')[1].substring(0,5))}</p>}
+                    {selectedEvent.endStr && !selectedEvent.allDay && <p><strong>End Time:</strong> {formatTime12Hour(selectedEvent.endStr.split('T')[1].substring(0,5))}</p>}
+                    {selectedEvent.allDay && <p><strong>Time:</strong> All Day</p>}
+                    {!selectedEvent.startStr && <p><strong>Type:</strong> Undated Package</p>}
+                    <p><strong>Story Type:</strong> {selectedEvent.extendedProps.storyType}</p>
                     <p><strong>Description:</strong> {selectedEvent.extendedProps.description}</p>
                     <p><strong>Location:</strong> {selectedEvent.extendedProps.location}</p>
                     <p><strong>Status:</strong> {selectedEvent.extendedProps.status || 'AVAILABLE'}</p>
@@ -823,7 +931,7 @@ export default function Home() {
             <Dialog.Title className="text-lg font-bold mb-4">{isEditing ? 'Edit Event' : 'New Event'}</Dialog.Title>
             <form onSubmit={(e) => { e.preventDefault(); handleNewEvent(); }}>
               <input type="text" placeholder="Slug" value={form.slug} onChange={(e) => setForm({...form, slug: e.target.value})} className="w-full p-2 border mb-2" required />
-              <input type="date" placeholder="Date" value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} className="w-full p-2 border mb-2" required />
+              <input type="date" placeholder="Date (optional for news packages)" value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} className="w-full p-2 border mb-2" />
               <div className="flex space-x-2 mb-2">
                 <select value={form.startHour} onChange={(e) => setForm({...form, startHour: e.target.value})} className="flex-1 p-2 border">
                   <option value="">Hour</option>
