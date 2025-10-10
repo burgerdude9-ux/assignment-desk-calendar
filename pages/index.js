@@ -114,14 +114,16 @@ export default function Home() {
     if (arg.view.type === 'dayGridMonth') {
       // Check if event has time (not all-day)
       const hasTime = arg.event.start && arg.event.start.toTimeString() !== '00:00:00 GMT+0000 (Coordinated Universal Time)' && !arg.event.allDay;
+      let content;
       if (!hasTime) {
         // all-day
-        return { html: `${dot}• <strong>${displayTitle}</strong>` };
+        content = `${dot}• <strong>${displayTitle}</strong>`;
       } else {
         // timed
         const timeStr = arg.event.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase().replace(' ', '');
-        return { html: `${dot}<span style="font-weight: normal;">${timeStr}</span> • <strong>${displayTitle}</strong>` };
+        content = `${dot}<span style="font-weight: normal;">${timeStr}</span> • <strong>${displayTitle}</strong>`;
       }
+      return { html: `<div>${content}</div>` };
     } else {
       // week view: show more details inside the event box
       const timeStr = arg.event.allDay ? 'All Day • ' : (arg.event.start ? arg.event.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase().replace(' ', '') + ' • ' : '');
@@ -141,7 +143,7 @@ export default function Home() {
       // include full description in data-full for post-render fitting
       const line3 = descShort ? `<div class="fd-desc" data-full="${(arg.event.extendedProps.description || '').replace(/"/g, '&quot;')}"><span>${descShort}</span></div>` : '';
 
-      const container = `${line1}${line2}${line3}`;
+      const container = `<div>${line1}${line2}${line3}</div>`;
       return { html: container };
     }
   };

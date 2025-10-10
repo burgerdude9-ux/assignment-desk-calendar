@@ -190,6 +190,37 @@ class MyDocument extends Document {
               font-weight: 700 !important;
             }
             
+            /* FullCalendar event styling - force red backgrounds */
+            .fc-event {
+              background-color: #D1190D !important;
+              border-color: #D1190D !important;
+              color: white !important;
+            }
+            
+            .fc-event-main {
+              background-color: #D1190D !important;
+              color: white !important;
+            }
+            
+            .fc-event-title {
+              color: white !important;
+            }
+            
+            .fc-event-time {
+              color: white !important;
+            }
+            
+            /* Week view event styling - ensure full width */
+            .fc-timegrid-event {
+              width: 100% !important;
+              left: 0 !important;
+              right: 0 !important;
+            }
+            
+            .fc-timegrid-event .fc-event-main {
+              width: 100% !important;
+            }
+            
             /* Responsive typography */
             @media (max-width: 768px) {
               h1, .headline, .main-title {
