@@ -80,7 +80,7 @@ export default async function handler(req, res) {
         const blob = await put(EVENTS_FILENAME, eventsJson, {
           access: 'public',
           contentType: 'application/json',
-          allowOverwrite: true,  // ✅ Allow overwriting existing blob
+          allowOverwrite: true,  // Allow overwriting existing blob
         });
 
         console.log('Blob upload successful:', blob.url);

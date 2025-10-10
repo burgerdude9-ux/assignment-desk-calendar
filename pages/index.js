@@ -838,7 +838,7 @@ export default function Home() {
                       onClick={() => setUnscheduledExpanded(!unscheduledExpanded)}
                       className="w-full flex items-center justify-between px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium border-b"
                     >
-                      <span>📦 Unscheduled Events ({filteredEvents.filter(isUnscheduledEvent).length})</span>
+                      <span>Unscheduled Events ({filteredEvents.filter(isUnscheduledEvent).length})</span>
                       <svg 
                         className={`w-4 h-4 transition-transform ${unscheduledExpanded ? 'rotate-180' : ''}`} 
                         fill="none" 
@@ -893,11 +893,23 @@ export default function Home() {
                     )}
                   </div>
                   
-                  {/* Scheduled Events section - always expanded */}
-                  <div>
-                    <div className="px-3 py-2 bg-blue-50 text-blue-800 text-sm font-medium border-b">
-                      📅 Scheduled Events ({filteredEvents.filter(isScheduledEvent).length})
-                    </div>
+                  {/* Scheduled Events section */}
+                  <div className="mb-2">
+                    <button
+                      onClick={() => setScheduledExpanded(!scheduledExpanded)}
+                      className="w-full flex items-center justify-between px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 text-sm font-medium border-b"
+                    >
+                      <span>Scheduled Events ({filteredEvents.filter(isScheduledEvent).length})</span>
+                      <svg 
+                        className={`w-4 h-4 transition-transform ${scheduledExpanded ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {scheduledExpanded && (
                     
                     {/* Available Events subsection */}
                     <div className="ml-2">
@@ -905,7 +917,7 @@ export default function Home() {
                         onClick={() => setAvailableExpanded(!availableExpanded)}
                         className="w-full flex items-center justify-between px-3 py-2 bg-green-50 hover:bg-green-100 text-green-800 text-sm font-medium border-b"
                       >
-                        <span>� Available Events ({filteredEvents.filter(isAvailableEvent).length})</span>
+                        <span>Available Events ({filteredEvents.filter(isAvailableEvent).length})</span>
                         <svg 
                           className={`w-4 h-4 transition-transform ${availableExpanded ? 'rotate-180' : ''}`} 
                           fill="none" 
@@ -963,7 +975,7 @@ export default function Home() {
                         onClick={() => setClaimedExpanded(!claimedExpanded)}
                         className="w-full flex items-center justify-between px-3 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 text-sm font-medium border-b"
                       >
-                        <span>✅ Claimed Events ({filteredEvents.filter(isClaimedEvent).length})</span>
+                        <span>Claimed Events ({filteredEvents.filter(isClaimedEvent).length})</span>
                         <svg 
                           className={`w-4 h-4 transition-transform ${claimedExpanded ? 'rotate-180' : ''}`} 
                           fill="none" 
