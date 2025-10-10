@@ -1,9 +1,12 @@
+'use client';
+
 import { useState, useEffect, useRef, useMemo } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { Dialog } from '@headlessui/react';
+import Image from 'next/image';
 
 export default function Home() {
   const [view, setView] = useState('dayGridMonth');
@@ -23,6 +26,16 @@ export default function Home() {
   const [tempEndDate, setTempEndDate] = useState('');
   const [isClaiming, setIsClaiming] = useState(false);
   const [claimProducer, setClaimProducer] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isLoadingEngage, setIsLoadingEngage] = useState(false);
+  const validateForm = () => {
+    const errors = {};
+    if (!form.slug.trim()) errors.slug = 'Slug is required';
+    if (!form.date) errors.date = 'Date is required';
+    if (form.description.length > 500) errors.description = 'Description must be less than 500 characters';
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   // Reference to the FullCalendar instance so we can call its API to switch views
   const calendarRef = useRef(null);
@@ -56,6 +69,11 @@ export default function Home() {
     return desc.length > maxLength ? desc.substring(0, maxLength) + '...' : desc;
   };
 
+  const formatSlug = (slug) => {
+    if (!slug) return '';
+    return slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+  };
+
   const handleEventClick = (info) => {
     setSelectedEvent(info.event);
     setIsOpen(true);
@@ -67,9 +85,14 @@ export default function Home() {
     description: '', 
     location: '', 
     date: new Date().toISOString().split('T')[0], 
-    startTime: '', 
-    endTime: '', 
-    producer: '' 
+    startHour: '', 
+    startMin: '', 
+    startAmpm: '', 
+    endHour: '', 
+    endMin: '', 
+    endAmpm: '', 
+    producer: '',
+    status: 'AVAILABLE' 
   });
 
   // Load events from API on component mount
@@ -96,11 +119,16 @@ export default function Home() {
         const data = await response.json();
         console.log('Loaded events:', data.length);
         setEvents(data);
+        setErrorMessage('');
       } else {
-        console.error('Failed to fetch events:', response.status);
+        const errorText = `Failed to fetch events: ${response.status}`;
+        console.error(errorText);
+        setErrorMessage(errorText);
       }
     } catch (error) {
-      console.error('Error fetching events:', error);
+      const errorText = 'Error fetching events: ' + error.message;
+      console.error(errorText);
+      setErrorMessage(errorText);
     }
   };
 
@@ -116,16 +144,22 @@ export default function Home() {
       });
       console.log('Save response status:', response.status);
       if (!response.ok) {
-        console.error('Failed to save events');
+        const errorText = 'Failed to save events';
+        console.error(errorText);
+        setErrorMessage(errorText);
       } else {
         console.log('Events saved successfully');
+        setErrorMessage('');
       }
     } catch (error) {
-      console.error('Error saving events:', error);
+      const errorText = 'Error saving events: ' + error.message;
+      console.error(errorText);
+      setErrorMessage(errorText);
     }
   };
 
   const fetchEngageEvents = async () => {
+    setIsLoadingEngage(true);
     try {
       console.log('Fetching Engage events...');
       const response = await fetch('/api/scrape-engage');
@@ -134,11 +168,18 @@ export default function Home() {
         console.log('Fetched Engage events:', engageEventsData.length);
         setEngageEvents(engageEventsData);
         setIsListOpen(true); // Open the list after fetching
+        setErrorMessage('');
       } else {
-        console.error('Failed to fetch Engage events');
+        const errorText = 'Failed to fetch Engage events';
+        console.error(errorText);
+        setErrorMessage(errorText);
       }
     } catch (error) {
-      console.error('Error fetching Engage events:', error);
+      const errorText = 'Error fetching Engage events: ' + error.message;
+      console.error(errorText);
+      setErrorMessage(errorText);
+    } finally {
+      setIsLoadingEngage(false);
     }
   };
 
@@ -230,22 +271,65 @@ export default function Home() {
     const event = selectedEvent;
     const startTime = event.startStr.includes('T') ? event.startStr.split('T')[1].substring(0,5) : '';
     const endTime = event.endStr ? event.endStr.split('T')[1].substring(0,5) : '';
+    
+    // Parse start time
+    let startHour = '', startMin = '', startAmpm = '';
+    if (startTime) {
+      const [hourStr, min] = startTime.split(':');
+      const hour = parseInt(hourStr);
+      startAmpm = hour >= 12 ? 'PM' : 'AM';
+      startHour = (hour % 12 || 12).toString();
+      startMin = min;
+    }
+    
+    // Parse end time
+    let endHour = '', endMin = '', endAmpm = '';
+    if (endTime) {
+      const [hourStr, min] = endTime.split(':');
+      const hour = parseInt(hourStr);
+      endAmpm = hour >= 12 ? 'PM' : 'AM';
+      endHour = (hour % 12 || 12).toString();
+      endMin = min;
+    }
+    
     setForm({
       slug: event.extendedProps.slug,
       storyType: event.extendedProps.storyType,
       description: event.extendedProps.description,
       location: event.extendedProps.location,
       date: event.startStr.split('T')[0],
-      startTime,
-      endTime,
+      startHour,
+      startMin,
+      startAmpm,
+      endHour,
+      endMin,
+      endAmpm,
       producer: event.extendedProps.producer || '',
+      status: event.extendedProps.status || 'AVAILABLE',
     });
     setIsOpen(false);
     setIsNewOpen(true);
   };
 
   const handleNewEvent = () => {
-    const start = form.startTime ? `${form.date}T${form.startTime}` : form.date;
+    if (!validateForm()) return;
+    // Combine start time
+    let startTime = '';
+    if (form.startHour && form.startMin && form.startAmpm) {
+      const hour24 = form.startAmpm === 'PM' && form.startHour !== '12' ? parseInt(form.startHour) + 12 : 
+                     form.startAmpm === 'AM' && form.startHour === '12' ? 0 : parseInt(form.startHour);
+      startTime = `${hour24.toString().padStart(2, '0')}:${form.startMin}`;
+    }
+    
+    // Combine end time
+    let endTime = '';
+    if (form.endHour && form.endMin && form.endAmpm) {
+      const hour24 = form.endAmpm === 'PM' && form.endHour !== '12' ? parseInt(form.endHour) + 12 : 
+                     form.endAmpm === 'AM' && form.endHour === '12' ? 0 : parseInt(form.endHour);
+      endTime = `${hour24.toString().padStart(2, '0')}:${form.endMin}`;
+    }
+    
+    const start = startTime ? `${form.date}T${startTime}` : form.date;
     const title = form.slug || 'New Event';
     if (isEditing && editingEvent) {
       // Update existing event
@@ -253,7 +337,7 @@ export default function Home() {
         ...e,
         title,
         start,
-        end: form.endTime ? `${form.date}T${form.endTime}` : null,
+        end: endTime ? `${form.date}T${endTime}` : null,
         extendedProps: {
           ...e.extendedProps,
           slug: form.slug,
@@ -261,6 +345,7 @@ export default function Home() {
           description: form.description,
           location: form.location,
           producer: form.producer,
+          status: form.status,
         },
       } : e));
       setIsEditing(false);
@@ -271,14 +356,14 @@ export default function Home() {
         id: Date.now().toString(),
         title,
         start,
-        end: form.endTime ? `${form.date}T${form.endTime}` : null,
+        end: endTime ? `${form.date}T${endTime}` : null,
         extendedProps: {
           slug: form.slug,
           storyType: form.storyType,
           description: form.description,
           location: form.location,
           producer: form.producer,
-          status: 'AVAILABLE',
+          status: form.status,
         },
       };
       setEvents([...events, newEvent]);
@@ -289,9 +374,14 @@ export default function Home() {
       description: '', 
       location: '', 
       date: new Date().toISOString().split('T')[0], 
-      startTime: '', 
-      endTime: '', 
-      producer: '' 
+      startHour: '', 
+      startMin: '', 
+      startAmpm: '', 
+      endHour: '', 
+      endMin: '', 
+      endAmpm: '', 
+      producer: '',
+      status: 'AVAILABLE' 
     });
     setIsNewOpen(false);
   };
@@ -372,7 +462,7 @@ export default function Home() {
     <div className="h-screen flex flex-col">
       <header className="bg-red-600 text-white p-4">
         <div className="flex items-center">
-          <img src="/logo/logo.png" alt="Montclair News Lab" className="h-16 w-16 object-contain mr-4" />
+          <Image src="/logo/logo.png" alt="Montclair News Lab" width={64} height={64} className="object-contain mr-4" />
           <div className="flex-1">
             <h1 className="text-2xl font-bold">{`Montclair News Lab\u00A0\u00A0\u00A0Assignment Desk`}</h1>
             <div className="mt-2 flex items-center justify-between">
@@ -397,9 +487,10 @@ export default function Home() {
                 </button>
                 <button
                   onClick={fetchEngageEvents}
-                  className="mr-2 px-4 py-2 rounded border border-red-900 bg-red-500 hover:bg-red-800"
+                  disabled={isLoadingEngage}
+                  className="mr-2 px-4 py-2 rounded border border-red-900 bg-red-500 hover:bg-red-800 disabled:opacity-50"
                 >
-                  Engage
+                  {isLoadingEngage ? 'Loading...' : 'Engage'}
                 </button>
                 <button
                   onClick={() => setIsNewOpen(true)}
@@ -412,6 +503,14 @@ export default function Home() {
           </div>
         </div>
       </header>
+      {errorMessage && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <span className="block sm:inline">{errorMessage}</span>
+          <button onClick={() => setErrorMessage('')} className="absolute top-0 bottom-0 right-0 px-4 py-3">
+            <span className="text-red-500">×</span>
+          </button>
+        </div>
+      )}
       {/* Left-side events list panel */}
       {isListOpen && (
         <div className="fixed inset-y-0 left-0 w-80 max-w-full z-50">
@@ -477,26 +576,76 @@ export default function Home() {
               ) : (
                 filteredEvents.map(e => (
                   <div key={e.id} className="p-3 border-b hover:bg-gray-50 cursor-pointer" onClick={() => {
-                    // navigate calendar to date and open details
-                    try {
-                      if (calendarRef.current && calendarRef.current.getApi) {
-                        calendarRef.current.getApi().gotoDate(e.start);
+                    if (e.id.startsWith('engage-')) {
+                      // Import Engage event: populate form and open new event modal
+                      const title = e.title || '';
+                      const desc = e.extendedProps.description || '';
+                      let cleanDesc = desc;
+                      if (desc.toLowerCase().startsWith(title.toLowerCase())) {
+                        cleanDesc = desc.substring(title.length).trim();
+                        cleanDesc = cleanDesc.replace(/^[\s,:;-]+/, '');
                       }
-                    } catch (err) {
-                      console.error('Failed to navigate to date', err);
+                      const startTimeStr = e.start.includes('T') ? e.start.split('T')[1].substring(0,5) : '';
+                      const endTimeStr = e.end && e.end.includes('T') ? e.end.split('T')[1].substring(0,5) : '';
+                      
+                      // Parse start time
+                      let startHour = '', startMin = '', startAmpm = '';
+                      if (startTimeStr) {
+                        const [hourStr, min] = startTimeStr.split(':');
+                        const hour = parseInt(hourStr);
+                        startAmpm = hour >= 12 ? 'PM' : 'AM';
+                        startHour = (hour % 12 || 12).toString();
+                        startMin = min;
+                      }
+                      
+                      // Parse end time
+                      let endHour = '', endMin = '', endAmpm = '';
+                      if (endTimeStr) {
+                        const [hourStr, min] = endTimeStr.split(':');
+                        const hour = parseInt(hourStr);
+                        endAmpm = hour >= 12 ? 'PM' : 'AM';
+                        endHour = (hour % 12 || 12).toString();
+                        endMin = min;
+                      }
+                      
+                      setForm({
+                        slug: formatSlug(e.extendedProps.slug || e.title || ''),
+                        storyType: e.extendedProps.storyType || '',
+                        description: cleanDesc,
+                        location: e.extendedProps.location || '',
+                        date: e.start.split('T')[0],
+                        startHour,
+                        startMin,
+                        startAmpm,
+                        endHour,
+                        endMin,
+                        endAmpm,
+                        producer: '',
+                      });
+                      setIsNewOpen(true);
+                      setIsListOpen(false);
+                    } else {
+                      // navigate calendar to date and open details
+                      try {
+                        if (calendarRef.current && calendarRef.current.getApi) {
+                          calendarRef.current.getApi().gotoDate(e.start);
+                        }
+                      } catch (err) {
+                        console.error('Failed to navigate to date', err);
+                      }
+                      // set a selectedEvent-like object that the dialog expects
+                      setSelectedEvent({
+                        id: e.id,
+                        extendedProps: e.extendedProps || {},
+                        startStr: e.start,
+                        endStr: e.end || ''
+                      });
+                      setIsListOpen(false);
+                      setIsOpen(true);
                     }
-                    // set a selectedEvent-like object that the dialog expects
-                    setSelectedEvent({
-                      id: e.id,
-                      extendedProps: e.extendedProps || {},
-                      startStr: e.start,
-                      endStr: e.end || ''
-                    });
-                    setIsListOpen(false);
-                    setIsOpen(true);
                   }}>
                     <div className="text-sm text-gray-600">{new Date(e.start).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: e.start.includes('T') ? 'short' : undefined })}</div>
-                    <div className="font-medium text-gray-900">{e.title || e.extendedProps?.slug || 'Untitled'}</div>
+                    <div className="font-medium text-gray-900">{formatSlug(e.title || e.extendedProps?.slug) || 'Untitled'}</div>
                     {e.extendedProps?.location && <div className="text-sm text-gray-500">{e.extendedProps.location}</div>}
                   </div>
                 ))
@@ -514,10 +663,13 @@ export default function Home() {
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
           eventContent={function(arg) {
-            const title = arg.event.title;
+            const title = formatSlug(arg.event.title);
             const status = arg.event.extendedProps.status || 'AVAILABLE';
             let color = 'green'; // default to green for available
             if (status === 'CLAIMED') color = 'blue';
+            else if (status === 'IN_PROGRESS') color = 'orange';
+            else if (status === 'APPROVED') color = 'purple';
+            else if (status === 'COMPLETED') color = 'gray';
 
             const dot = `<span style="color: ${color};">●</span> `;
             const displayTitle = truncateTitle(title);
@@ -607,7 +759,7 @@ export default function Home() {
               <div>
                 {isClaiming ? (
                   <div>
-                    <p><strong>Slug:</strong> {selectedEvent.extendedProps.slug}</p>
+                    <p><strong>Slug:</strong> {formatSlug(selectedEvent.extendedProps.slug)}</p>
                     <p><strong>Date:</strong> {selectedEvent.startStr.split('T')[0]}</p>
                     {selectedEvent.startStr.includes('T') && <p><strong>Start Time:</strong> {formatTime12Hour(selectedEvent.startStr.split('T')[1].substring(0,5))}</p>}
                     {selectedEvent.endStr && <p><strong>End Time:</strong> {formatTime12Hour(selectedEvent.endStr.split('T')[1].substring(0,5))}</p>}
@@ -630,13 +782,14 @@ export default function Home() {
                   </div>
                 ) : (
                   <div>
-                    <p><strong>Slug:</strong> {selectedEvent.extendedProps.slug}</p>
+                    <p><strong>Slug:</strong> {formatSlug(selectedEvent.extendedProps.slug)}</p>
                     <p><strong>Date:</strong> {selectedEvent.startStr.split('T')[0]}</p>
                     {selectedEvent.startStr.includes('T') && <p><strong>Start Time:</strong> {formatTime12Hour(selectedEvent.startStr.split('T')[1].substring(0,5))}</p>}
                     {selectedEvent.endStr && <p><strong>End Time:</strong> {formatTime12Hour(selectedEvent.endStr.split('T')[1].substring(0,5))}</p>}
                     <p><strong>Type:</strong> {selectedEvent.extendedProps.storyType}</p>
                     <p><strong>Description:</strong> {selectedEvent.extendedProps.description}</p>
                     <p><strong>Location:</strong> {selectedEvent.extendedProps.location}</p>
+                    <p><strong>Status:</strong> {selectedEvent.extendedProps.status || 'AVAILABLE'}</p>
                     {selectedEvent.extendedProps.producer && selectedEvent.extendedProps.status === 'CLAIMED' ? (
                       <p><strong>Producer:</strong> {selectedEvent.extendedProps.producer}</p>
                     ) : (
@@ -663,12 +816,49 @@ export default function Home() {
             <form onSubmit={(e) => { e.preventDefault(); handleNewEvent(); }}>
               <input type="text" placeholder="Slug" value={form.slug} onChange={(e) => setForm({...form, slug: e.target.value})} className="w-full p-2 border mb-2" required />
               <input type="date" placeholder="Date" value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} className="w-full p-2 border mb-2" required />
-              <input type="time" placeholder="Start Time" value={form.startTime} onChange={(e) => setForm({...form, startTime: e.target.value})} className="w-full p-2 border mb-2" />
-              <input type="time" placeholder="End Time" value={form.endTime} onChange={(e) => setForm({...form, endTime: e.target.value})} className="w-full p-2 border mb-2" />
+              <div className="flex space-x-2 mb-2">
+                <select value={form.startHour} onChange={(e) => setForm({...form, startHour: e.target.value})} className="flex-1 p-2 border">
+                  <option value="">Hour</option>
+                  {Array.from({length: 12}, (_, i) => i + 1).map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+                <select value={form.startMin} onChange={(e) => setForm({...form, startMin: e.target.value})} className="flex-1 p-2 border">
+                  <option value="">Min</option>
+                  <option value="00">00</option>
+                  <option value="30">30</option>
+                </select>
+                <select value={form.startAmpm} onChange={(e) => setForm({...form, startAmpm: e.target.value})} className="flex-1 p-2 border">
+                  <option value="">AM/PM</option>
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
+              <div className="flex space-x-2 mb-2">
+                <select value={form.endHour} onChange={(e) => setForm({...form, endHour: e.target.value})} className="flex-1 p-2 border">
+                  <option value="">Hour</option>
+                  {Array.from({length: 12}, (_, i) => i + 1).map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+                <select value={form.endMin} onChange={(e) => setForm({...form, endMin: e.target.value})} className="flex-1 p-2 border">
+                  <option value="">Min</option>
+                  <option value="00">00</option>
+                  <option value="30">30</option>
+                </select>
+                <select value={form.endAmpm} onChange={(e) => setForm({...form, endAmpm: e.target.value})} className="flex-1 p-2 border">
+                  <option value="">AM/PM</option>
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
               <textarea placeholder="Description" value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} className="w-full p-2 border mb-2" maxLength="500"></textarea>
               <input type="text" placeholder="Location" value={form.location} onChange={(e) => setForm({...form, location: e.target.value})} className="w-full p-2 border mb-2" />
               <input type="text" placeholder="Story Type" value={form.storyType} onChange={(e) => setForm({...form, storyType: e.target.value})} className="w-full p-2 border mb-2" />
               <input type="text" placeholder="Producer" value={form.producer} onChange={(e) => setForm({...form, producer: e.target.value})} className="w-full p-2 border mb-2" />
+              <select value={form.status} onChange={(e) => setForm({...form, status: e.target.value})} className="w-full p-2 border mb-2">
+                <option value="AVAILABLE">Available</option>
+                <option value="CLAIMED">Claimed</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="APPROVED">Approved</option>
+                <option value="COMPLETED">Completed</option>
+              </select>
               <button type="submit" className="bg-white text-red-600 border border-red-800 px-4 py-2 rounded hover:bg-red-50">{isEditing ? 'Update' : 'Create'}</button>
             </form>
             <button
