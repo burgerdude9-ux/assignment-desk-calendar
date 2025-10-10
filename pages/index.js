@@ -71,11 +71,11 @@ export default function Home() {
   };
 
   const isUnscheduledEvent = (event) => {
-    return event.extendedProps?.isPackage || !event.start;
+    return event.extendedProps?.type === 'unscheduled';
   };
 
   const isScheduledEvent = (event) => {
-    return !isUnscheduledEvent(event);
+    return event.extendedProps?.type === 'scheduled';
   };
 
   const eventContent = (arg) => {
@@ -193,7 +193,17 @@ export default function Home() {
       if (response.ok) {
         const data = await response.json();
         console.log('Loaded events:', data.length);
-        setEvents(data);
+        
+        // Migration: Add type field to existing events that don't have it
+        const migratedEvents = data.map(event => ({
+          ...event,
+          extendedProps: {
+            ...event.extendedProps,
+            type: event.extendedProps?.type || (event.start ? 'scheduled' : 'unscheduled')
+          }
+        }));
+        
+        setEvents(migratedEvents);
         setErrorMessage('');
       } else {
         const errorText = `Failed to fetch events: ${response.status}`;
@@ -232,7 +242,7 @@ export default function Home() {
             location: event.extendedProps.location,
             producer: event.extendedProps.producer,
             status: event.extendedProps.status,
-            isPackage: event.extendedProps.isPackage
+            type: event.extendedProps.type // NEW: Include type field
           };
         }
         
@@ -348,7 +358,7 @@ export default function Home() {
         location: selectedEvent.extendedProps?.location,
         producer: selectedEvent.extendedProps?.producer,
         status: selectedEvent.extendedProps?.status,
-        isPackage: selectedEvent.extendedProps?.isPackage
+        type: selectedEvent.extendedProps?.type // NEW: Preserve type field
       },
       startStr: selectedEvent.startStr,
       endStr: selectedEvent.endStr
@@ -421,7 +431,7 @@ export default function Home() {
     const title = form.slug || 'New Event';
     const hasDate = !!form.date;
     const hasTime = !!startTime;
-    const isUnscheduled = !hasDate; // Events with no date are unscheduled
+    const eventType = hasDate ? 'scheduled' : 'unscheduled'; // NEW: Explicit type field
     
     if (isEditing && editingEvent) {
       // Update existing event - create clean updated event
@@ -438,7 +448,7 @@ export default function Home() {
           location: form.location,
           producer: form.producer,
           status: form.status,
-          isPackage: isUnscheduled // Flag for unscheduled events (no date)
+          type: eventType // NEW: Explicit type field
         },
       };
       setEvents(events.map(e => e.id === editingEvent.id ? updatedEvent : e));
@@ -459,7 +469,7 @@ export default function Home() {
           location: form.location,
           producer: form.producer,
           status: form.status,
-          isPackage: isUnscheduled // Flag for unscheduled events (no date)
+          type: eventType // NEW: Explicit type field
         },
       };
       setEvents([...events, newEvent]);
@@ -518,52 +528,57 @@ export default function Home() {
       }
 
       // For calendar events, apply all filters
-      const eventDate = new Date(e.start);
-      eventDate.setHours(0, 0, 0, 0);
+      // Skip date filtering for unscheduled events (they have no dates)
+      const isUnscheduled = isUnscheduledEvent(e);
+      
+      if (!isUnscheduled) {
+        const eventDate = new Date(e.start);
+        eventDate.setHours(0, 0, 0, 0);
 
-      // Exclude past events
-      if (eventDate < today) return false;
+        // Exclude past events
+        if (eventDate < today) return false;
 
-      // Keyword filter: check title, description, location
+        // Date filter
+        if (dateFilter === 'today') {
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          if (eventDate < today || eventDate >= tomorrow) return false;
+        } else if (dateFilter === 'thisWeek') {
+          const weekStart = new Date(today);
+          weekStart.setDate(today.getDate() - today.getDay());
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekStart.getDate() + 7);
+          if (eventDate < weekStart || eventDate >= weekEnd) return false;
+        } else if (dateFilter === 'nextWeek') {
+          const nextWeekStart = new Date(today);
+          nextWeekStart.setDate(today.getDate() + (7 - today.getDay()));
+          const nextWeekEnd = new Date(nextWeekStart);
+          nextWeekEnd.setDate(nextWeekStart.getDate() + 7);
+          if (eventDate < nextWeekStart || eventDate >= nextWeekEnd) return false;
+        } else if (dateFilter === 'thisMonth') {
+          const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+          const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+          if (eventDate < monthStart || eventDate >= monthEnd) return false;
+        } else if (dateFilter === 'nextMonth') {
+          const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+          const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 1);
+          if (eventDate < nextMonthStart || eventDate >= nextMonthEnd) return false;
+        } else if (dateFilter === 'custom') {
+          if (customStartDate && customEndDate) {
+            const start = new Date(customStartDate);
+            const end = new Date(customEndDate);
+            end.setDate(end.getDate() + 1); // Include the end date
+            if (eventDate < start || eventDate >= end) return false;
+          }
+        }
+      }
+
+      // Keyword filter: check title, description, location (applies to all events)
       if (keywordFilter && 
           !e.title.toLowerCase().includes(keywordFilter.toLowerCase()) &&
           !e.extendedProps?.description?.toLowerCase().includes(keywordFilter.toLowerCase()) &&
           !e.extendedProps?.location?.toLowerCase().includes(keywordFilter.toLowerCase())) {
         return false;
-      }
-
-      // Date filter
-      if (dateFilter === 'today') {
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        if (eventDate < today || eventDate >= tomorrow) return false;
-      } else if (dateFilter === 'thisWeek') {
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay());
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 7);
-        if (eventDate < weekStart || eventDate >= weekEnd) return false;
-      } else if (dateFilter === 'nextWeek') {
-        const nextWeekStart = new Date(today);
-        nextWeekStart.setDate(today.getDate() + (7 - today.getDay()));
-        const nextWeekEnd = new Date(nextWeekStart);
-        nextWeekEnd.setDate(nextWeekStart.getDate() + 7);
-        if (eventDate < nextWeekStart || eventDate >= nextWeekEnd) return false;
-      } else if (dateFilter === 'thisMonth') {
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-        if (eventDate < monthStart || eventDate >= monthEnd) return false;
-      } else if (dateFilter === 'nextMonth') {
-        const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-        const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 1);
-        if (eventDate < nextMonthStart || eventDate >= nextMonthEnd) return false;
-      } else if (dateFilter === 'custom') {
-        if (customStartDate && customEndDate) {
-          const start = new Date(customStartDate);
-          const end = new Date(customEndDate);
-          end.setDate(end.getDate() + 1); // Include the end date
-          if (eventDate < start || eventDate >= end) return false;
-        }
       }
 
       return true;
