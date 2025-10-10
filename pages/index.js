@@ -910,134 +910,137 @@ export default function Home() {
                       </svg>
                     </button>
                     {scheduledExpanded && (
-                    
-                    {/* Available Events subsection */}
-                    <div className="ml-2">
-                      <button
-                        onClick={() => setAvailableExpanded(!availableExpanded)}
-                        className="w-full flex items-center justify-between px-3 py-2 bg-green-50 hover:bg-green-100 text-green-800 text-sm font-medium border-b"
-                      >
-                        <span>Available Events ({filteredEvents.filter(isAvailableEvent).length})</span>
-                        <svg 
-                          className={`w-4 h-4 transition-transform ${availableExpanded ? 'rotate-180' : ''}`} 
-                          fill="none" 
-                          stroke="currentColor" 
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                      {availableExpanded && filteredEvents.filter(isAvailableEvent).length > 0 && (
-                        <div className="bg-green-25">
-                          {filteredEvents.filter(isAvailableEvent).map(e => (
-                            <div key={e.id} className="p-3 border-b hover:bg-gray-100 cursor-pointer" onClick={() => {
-                              // Regular event - navigate calendar to date and open details
-                              try {
-                                if (calendarRef.current && calendarRef.current.getApi) {
-                                  calendarRef.current.getApi().gotoDate(e.start);
-                                }
-                              } catch (err) {
-                                console.error('Failed to navigate to date', err);
-                              }
-                              // set a selectedEvent-like object that the dialog expects
-                              setSelectedEvent({
-                                id: e.id,
-                                extendedProps: e.extendedProps || {},
-                                startStr: e.start,
-                                endStr: e.end || ''
-                              });
-                              setIsListOpen(false);
-                              setIsOpen(true);
-                            }}>
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                  <div className="font-medium text-gray-900">{formatSlug(e.title || e.extendedProps?.slug) || 'Untitled'}</div>
-                                  <div className="text-sm text-gray-600 mt-1">
-                                    <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium mr-2">AVAILABLE</span>
+                      <div>
+                        {/* Available Events subsection */}
+                        <div className="ml-2">
+                          <button
+                            onClick={() => setAvailableExpanded(!availableExpanded)}
+                            className="w-full flex items-center justify-between px-3 py-2 bg-green-50 hover:bg-green-100 text-green-800 text-sm font-medium border-b"
+                          >
+                            <span>Available Events ({filteredEvents.filter(isAvailableEvent).length})</span>
+                            <svg 
+                              className={`w-4 h-4 transition-transform ${availableExpanded ? 'rotate-180' : ''}`} 
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          {availableExpanded && filteredEvents.filter(isAvailableEvent).length > 0 && (
+                            <div className="bg-green-25">
+                              {filteredEvents.filter(isAvailableEvent).map(e => (
+                                <div key={e.id} className="p-3 border-b hover:bg-gray-100 cursor-pointer" onClick={() => {
+                                  // Regular event - navigate calendar to date and open details
+                                  try {
+                                    if (calendarRef.current && calendarRef.current.getApi) {
+                                      calendarRef.current.getApi().gotoDate(e.start);
+                                    }
+                                  } catch (err) {
+                                    console.error('Failed to navigate to date', err);
+                                  }
+                                  // set a selectedEvent-like object that the dialog expects
+                                  setSelectedEvent({
+                                    id: e.id,
+                                    extendedProps: e.extendedProps || {},
+                                    startStr: e.start,
+                                    endStr: e.end || ''
+                                  });
+                                  setIsListOpen(false);
+                                  setIsOpen(true);
+                                }}>
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                      <div className="font-medium text-gray-900">{formatSlug(e.title || e.extendedProps?.slug) || 'Untitled'}</div>
+                                      <div className="text-sm text-gray-600 mt-1">
+                                        <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium mr-2">AVAILABLE</span>
+                                      </div>
+                                      <div className="text-sm text-gray-500 mt-1">
+                                        {e.start ? new Date(e.start).toLocaleDateString() : 'Undated Package'}
+                                        {e.start && e.start.includes('T') && ` at ${new Date(e.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
+                                        {e.end && e.end !== e.start && ` - ${new Date(e.end).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
+                                      </div>
+                                      {e.extendedProps?.location && <div className="text-sm text-gray-500">{e.extendedProps.location}</div>}
+                                    </div>
                                   </div>
-                                  <div className="text-sm text-gray-500 mt-1">
-                                    {e.start ? new Date(e.start).toLocaleDateString() : 'Undated Package'}
-                                    {e.start && e.start.includes('T') && ` at ${new Date(e.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
-                                    {e.end && e.end !== e.start && ` - ${new Date(e.end).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
-                                  </div>
-                                  {e.extendedProps?.location && <div className="text-sm text-gray-500">{e.extendedProps.location}</div>}
                                 </div>
-                              </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
-                      )}
-                    </div>
-                    
-                    {/* Claimed Events subsection */}
-                    <div className="ml-2">
-                      <button
-                        onClick={() => setClaimedExpanded(!claimedExpanded)}
-                        className="w-full flex items-center justify-between px-3 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 text-sm font-medium border-b"
-                      >
-                        <span>Claimed Events ({filteredEvents.filter(isClaimedEvent).length})</span>
-                        <svg 
-                          className={`w-4 h-4 transition-transform ${claimedExpanded ? 'rotate-180' : ''}`} 
-                          fill="none" 
-                          stroke="currentColor" 
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                      {claimedExpanded && filteredEvents.filter(isClaimedEvent).length > 0 && (
-                        <div className="bg-yellow-25">
-                          {filteredEvents.filter(isClaimedEvent).map(e => (
-                            <div key={e.id} className="p-3 border-b hover:bg-gray-100 cursor-pointer" onClick={() => {
-                              // Regular event - navigate calendar to date and open details
-                              try {
-                                if (calendarRef.current && calendarRef.current.getApi) {
-                                  calendarRef.current.getApi().gotoDate(e.start);
-                                }
-                              } catch (err) {
-                                console.error('Failed to navigate to date', err);
-                              }
-                              // set a selectedEvent-like object that the dialog expects
-                              setSelectedEvent({
-                                id: e.id,
-                                extendedProps: e.extendedProps || {},
-                                startStr: e.start,
-                                endStr: e.end || ''
-                              });
-                              setIsListOpen(false);
-                              setIsOpen(true);
-                            }}>
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                  <div className="font-medium text-gray-900">{formatSlug(e.title || e.extendedProps?.slug) || 'Untitled'}</div>
-                                  <div className="text-sm text-gray-600 mt-1">
-                                    {e.extendedProps?.status && (
-                                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium mr-2 ${
-                                        e.extendedProps.status === 'CLAIMED' ? 'bg-yellow-100 text-yellow-800' :
-                                        e.extendedProps.status === 'IN_PROGRESS' ? 'bg-orange-100 text-orange-800' :
-                                        e.extendedProps.status === 'APPROVED' ? 'bg-purple-100 text-purple-800' :
-                                        e.extendedProps.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
-                                        'bg-gray-100 text-gray-800'
-                                      }`}>
-                                        {e.extendedProps.status}
-                                      </span>
-                                    )}
-                                    {e.extendedProps?.producer && <span>{e.extendedProps.producer}</span>}
+                        
+                        {/* Claimed Events subsection */}
+                        <div className="ml-2">
+                          <button
+                            onClick={() => setClaimedExpanded(!claimedExpanded)}
+                            className="w-full flex items-center justify-between px-3 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 text-sm font-medium border-b"
+                          >
+                            <span>Claimed Events ({filteredEvents.filter(isClaimedEvent).length})</span>
+                            <svg 
+                              className={`w-4 h-4 transition-transform ${claimedExpanded ? 'rotate-180' : ''}`} 
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          {claimedExpanded && filteredEvents.filter(isClaimedEvent).length > 0 && (
+                            <div className="bg-yellow-25">
+                              {filteredEvents.filter(isClaimedEvent).map(e => (
+                                <div key={e.id} className="p-3 border-b hover:bg-gray-100 cursor-pointer" onClick={() => {
+                                  // Regular event - navigate calendar to date and open details
+                                  try {
+                                    if (calendarRef.current && calendarRef.current.getApi) {
+                                      calendarRef.current.getApi().gotoDate(e.start);
+                                    }
+                                  } catch (err) {
+                                    console.error('Failed to navigate to date', err);
+                                  }
+                                  // set a selectedEvent-like object that the dialog expects
+                                  setSelectedEvent({
+                                    id: e.id,
+                                    extendedProps: e.extendedProps || {},
+                                    startStr: e.start,
+                                    endStr: e.end || ''
+                                  });
+                                  setIsListOpen(false);
+                                  setIsOpen(true);
+                                }}>
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                      <div className="font-medium text-gray-900">{formatSlug(e.title || e.extendedProps?.slug) || 'Untitled'}</div>
+                                      <div className="text-sm text-gray-600 mt-1">
+                                        {e.extendedProps?.status && (
+                                          <span className={`inline-block px-2 py-1 rounded text-xs font-medium mr-2 ${
+                                            e.extendedProps.status === 'CLAIMED' ? 'bg-yellow-100 text-yellow-800' :
+                                            e.extendedProps.status === 'IN_PROGRESS' ? 'bg-orange-100 text-orange-800' :
+                                            e.extendedProps.status === 'APPROVED' ? 'bg-purple-100 text-purple-800' :
+                                            e.extendedProps.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                                            'bg-gray-100 text-gray-800'
+                                          }`}>
+                                            {e.extendedProps.status}
+                                          </span>
+                                        )}
+                                        {e.extendedProps?.producer && <span>{e.extendedProps.producer}</span>}
+                                      </div>
+                                      <div className="text-sm text-gray-500 mt-1">
+                                        {e.start ? new Date(e.start).toLocaleDateString() : 'Undated Package'}
+                                        {e.start && e.start.includes('T') && ` at ${new Date(e.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
+                                        {e.end && e.end !== e.start && ` - ${new Date(e.end).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
+                                      </div>
+                                      {e.extendedProps?.location && <div className="text-sm text-gray-500">{e.extendedProps.location}</div>}
+                                    </div>
                                   </div>
-                                  <div className="text-sm text-gray-500 mt-1">
-                                    {e.start ? new Date(e.start).toLocaleDateString() : 'Undated Package'}
-                                    {e.start && e.start.includes('T') && ` at ${new Date(e.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
-                                    {e.end && e.end !== e.start && ` - ${new Date(e.end).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
-                                  </div>
-                                  {e.extendedProps?.location && <div className="text-sm text-gray-500">{e.extendedProps.location}</div>}
                                 </div>
-                              </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
+                  
                 </>
               )}
             </div>
