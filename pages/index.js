@@ -82,7 +82,18 @@ export default function Home() {
   };
 
   const handleEventClick = (info) => {
-    setSelectedEvent(info.event);
+    // Extract only serializable properties to avoid circular references
+    const eventData = {
+      id: info.event.id,
+      title: info.event.title,
+      start: info.event.startStr,
+      end: info.event.endStr,
+      allDay: info.event.allDay,
+      extendedProps: info.event.extendedProps || {},
+      startStr: info.event.startStr,
+      endStr: info.event.endStr
+    };
+    setSelectedEvent(eventData);
     setIsOpen(true);
   };
 
@@ -142,12 +153,23 @@ export default function Home() {
   const saveEvents = async (newEvents) => {
     try {
       console.log('Saving events to API...', newEvents.length);
+      
+      // Ensure events are serializable by creating clean copies
+      const cleanEvents = newEvents.map(event => ({
+        id: event.id,
+        title: event.title,
+        start: event.start,
+        end: event.end,
+        allDay: event.allDay,
+        extendedProps: event.extendedProps || {}
+      }));
+      
       const response = await fetch('/api/events', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newEvents),
+        body: JSON.stringify(cleanEvents),
       });
       console.log('Save response status:', response.status);
       if (!response.ok) {
