@@ -915,7 +915,7 @@ export default function Home() {
                         <div className="ml-2">
                           <button
                             onClick={() => setAvailableExpanded(!availableExpanded)}
-                            className="w-full flex items-center justify-between px-3 py-2 bg-green-50 hover:bg-green-100 text-green-800 text-sm font-medium border-b"
+                            className="w-full flex items-center justify-between px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium border-b"
                           >
                             <span>Available Events ({filteredEvents.filter(isAvailableEvent).length})</span>
                             <svg 
@@ -973,7 +973,7 @@ export default function Home() {
                         <div className="ml-2">
                           <button
                             onClick={() => setClaimedExpanded(!claimedExpanded)}
-                            className="w-full flex items-center justify-between px-3 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 text-sm font-medium border-b"
+                            className="w-full flex items-center justify-between px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium border-b"
                           >
                             <span>Claimed Events ({filteredEvents.filter(isClaimedEvent).length})</span>
                             <svg 
