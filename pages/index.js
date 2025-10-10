@@ -836,7 +836,7 @@ export default function Home() {
                   <div className="mb-2">
                     <button
                       onClick={() => setUnscheduledExpanded(!unscheduledExpanded)}
-                      className="w-full flex items-center justify-between px-3 py-2 bg-red-50 hover:bg-red-100 text-red-800 text-sm font-medium border-b"
+                      className="w-full flex items-center justify-between px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium border-b"
                     >
                       <span>Unscheduled Events ({filteredEvents.filter(isUnscheduledEvent).length})</span>
                       <svg 
@@ -897,7 +897,7 @@ export default function Home() {
                   <div className="mb-2">
                     <button
                       onClick={() => setScheduledExpanded(!scheduledExpanded)}
-                      className="w-full flex items-center justify-between px-3 py-2 bg-red-50 hover:bg-red-100 text-red-800 text-sm font-medium border-b"
+                      className="w-full flex items-center justify-between px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium border-b"
                     >
                       <span>Scheduled Events ({filteredEvents.filter(isScheduledEvent).length})</span>
                       <svg 
