@@ -102,11 +102,11 @@ export default function Home() {
   const eventContent = (arg) => {
     const title = formatTitle(arg.event.title);
     const status = arg.event.extendedProps.status || 'AVAILABLE';
-    let color = 'green'; // default to green for available
-    if (status === 'CLAIMED') color = 'blue';
-    else if (status === 'IN_PROGRESS') color = 'orange';
-    else if (status === 'APPROVED') color = 'purple';
-    else if (status === 'COMPLETED') color = 'gray';
+    let color = '#95C93D'; // default to green (Pantone 375) for available
+    if (status === 'CLAIMED') color = '#0084B6'; // blue (Pantone 7460)
+    else if (status === 'IN_PROGRESS') color = '#F36E24'; // orange (Pantone 1585)
+    else if (status === 'APPROVED') color = '#FFC909'; // yellow/gold (Pantone 7548)
+    else if (status === 'COMPLETED') color = '#8A8A8D'; // gray (Pantone Cool Gray 8)
 
     const dot = `<span style="color: ${color};">●</span> `;
     const displayTitle = truncateTitle(title);
