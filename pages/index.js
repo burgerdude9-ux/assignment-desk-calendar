@@ -100,7 +100,7 @@ export default function Home() {
   };
 
   const eventContent = (arg) => {
-    const title = formatSlug(arg.event.title);
+    const title = formatTitle(arg.event.title);
     const status = arg.event.extendedProps.status || 'AVAILABLE';
     let color = 'green'; // default to green for available
     if (status === 'CLAIMED') color = 'blue';
