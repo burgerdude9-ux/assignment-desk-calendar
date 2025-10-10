@@ -5,6 +5,8 @@ class MyDocument extends Document {
     return (
       <Html>
         <Head>
+          <link rel="icon" href="/logo/logo.png" />
+          <link rel="apple-touch-icon" href="/logo/logo.png" />
           <link href='https://cdn.jsdelivr.net/npm/@fullcalendar/core@6/main.css' rel='stylesheet' />
           <link href='https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6/main.css' rel='stylesheet' />
           <link href='https://cdn.jsdelivr.net/npm/@fullcalendar/timegrid@6/main.css' rel='stylesheet' />
