@@ -32,6 +32,10 @@ export default function Home() {
   const [isLoadingEngage, setIsLoadingEngage] = useState(false);
   const [listMode, setListMode] = useState('calendar'); // 'calendar' or 'engage'
   const [formErrors, setFormErrors] = useState({});
+  const [unscheduledExpanded, setUnscheduledExpanded] = useState(false);
+  const [scheduledExpanded, setScheduledExpanded] = useState(false);
+  const [availableExpanded, setAvailableExpanded] = useState(false);
+  const [claimedExpanded, setClaimedExpanded] = useState(false);
 
   // Reference to the FullCalendar instance so we can call its API to switch views
   const calendarRef = useRef(null);
