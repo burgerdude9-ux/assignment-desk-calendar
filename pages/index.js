@@ -28,14 +28,7 @@ export default function Home() {
   const [claimProducer, setClaimProducer] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoadingEngage, setIsLoadingEngage] = useState(false);
-  const validateForm = () => {
-    const errors = {};
-    if (!form.slug.trim()) errors.slug = 'Slug is required';
-    if (!form.date) errors.date = 'Date is required';
-    if (form.description.length > 500) errors.description = 'Description must be less than 500 characters';
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  const [formErrors, setFormErrors] = useState({});
 
   // Reference to the FullCalendar instance so we can call its API to switch views
   const calendarRef = useRef(null);
@@ -72,6 +65,21 @@ export default function Home() {
   const formatSlug = (slug) => {
     if (!slug) return '';
     return slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    
+    if (!form.slug.trim()) {
+      errors.slug = 'Slug is required';
+    }
+    
+    if (!form.date) {
+      errors.date = 'Date is required';
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleEventClick = (info) => {
