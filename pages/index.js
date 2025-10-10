@@ -585,61 +585,44 @@ export default function Home() {
     const eventsToFilter = listMode === 'engage' ? engageEvents : events;
 
     return eventsToFilter.filter(e => {
-      // For engage events, don't filter by date since they might be from different sources
-      if (listMode === 'engage') {
-        // Only apply keyword filter for engage events
-        if (keywordFilter && 
-            !e.title.toLowerCase().includes(keywordFilter.toLowerCase()) &&
-            !e.extendedProps?.description?.toLowerCase().includes(keywordFilter.toLowerCase()) &&
-            !e.extendedProps?.location?.toLowerCase().includes(keywordFilter.toLowerCase())) {
-          return false;
-        }
-        return true;
-      }
+      // Apply date filtering for all events (both calendar and engage)
+      const eventDate = new Date(e.start);
+      eventDate.setHours(0, 0, 0, 0);
 
-      // For calendar events, apply all filters
-      // Skip date filtering for unscheduled events (they have no dates)
-      const isUnscheduled = isUnscheduledEvent(e);
-      
-      if (!isUnscheduled) {
-        const eventDate = new Date(e.start);
-        eventDate.setHours(0, 0, 0, 0);
+      // Exclude past events (only for events with dates)
+      if (e.start && eventDate < today) return false;
 
-        // Exclude past events
-        if (eventDate < today) return false;
-
-        // Date filter
-        if (dateFilter === 'today') {
-          const tomorrow = new Date(today);
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          if (eventDate < today || eventDate >= tomorrow) return false;
-        } else if (dateFilter === 'thisWeek') {
-          const weekStart = new Date(today);
-          weekStart.setDate(today.getDate() - today.getDay());
-          const weekEnd = new Date(weekStart);
-          weekEnd.setDate(weekStart.getDate() + 7);
-          if (eventDate < weekStart || eventDate >= weekEnd) return false;
-        } else if (dateFilter === 'nextWeek') {
-          const nextWeekStart = new Date(today);
-          nextWeekStart.setDate(today.getDate() + (7 - today.getDay()));
-          const nextWeekEnd = new Date(nextWeekStart);
-          nextWeekEnd.setDate(nextWeekStart.getDate() + 7);
-          if (eventDate < nextWeekStart || eventDate >= nextWeekEnd) return false;
-        } else if (dateFilter === 'thisMonth') {
-          const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-          const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-          if (eventDate < monthStart || eventDate >= monthEnd) return false;
-        } else if (dateFilter === 'nextMonth') {
-          const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-          const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 1);
-          if (eventDate < nextMonthStart || eventDate >= nextMonthEnd) return false;
-        } else if (dateFilter === 'custom') {
-          if (customStartDate && customEndDate) {
-            const start = new Date(customStartDate);
-            const end = new Date(customEndDate);
-            end.setDate(end.getDate() + 1); // Include the end date
-            if (eventDate < start || eventDate >= end) return false;
-          }
+      // Date filter
+      if (dateFilter === 'today') {
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        if (eventDate < today || eventDate >= tomorrow) return false;
+      } else if (dateFilter === 'thisWeek') {
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay());
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 7);
+        if (eventDate < weekStart || eventDate >= weekEnd) return false;
+      } else if (dateFilter === 'nextWeek') {
+        const nextWeekStart = new Date(today);
+        nextWeekStart.setDate(today.getDate() + (7 - today.getDay()));
+        const nextWeekEnd = new Date(nextWeekStart);
+        nextWeekEnd.setDate(nextWeekStart.getDate() + 7);
+        if (eventDate < nextWeekStart || eventDate >= nextWeekEnd) return false;
+      } else if (dateFilter === 'thisMonth') {
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+        if (eventDate < monthStart || eventDate >= monthEnd) return false;
+      } else if (dateFilter === 'nextMonth') {
+        const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+        const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 1);
+        if (eventDate < nextMonthStart || eventDate >= nextMonthEnd) return false;
+      } else if (dateFilter === 'custom') {
+        if (customStartDate && customEndDate) {
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          end.setDate(end.getDate() + 1); // Include the end date
+          if (eventDate < start || eventDate >= end) return false;
         }
       }
 
@@ -653,7 +636,14 @@ export default function Home() {
 
       return true;
     }).sort((a, b) => {
-      // Unscheduled events (no date) come FIRST - completely separate from scheduled events
+      // For Engage events, sort by date (earliest first)
+      if (listMode === 'engage') {
+        const aDate = new Date(a.start);
+        const bDate = new Date(b.start);
+        return aDate - bDate;
+      }
+      
+      // For calendar events: Unscheduled events (no date) come FIRST - completely separate from scheduled events
       const aIsUnscheduled = isUnscheduledEvent(a);
       const bIsUnscheduled = isUnscheduledEvent(b);
       
@@ -784,26 +774,22 @@ export default function Home() {
                   aria-describedby="keyword-filter-help"
                 />
                 <div id="keyword-filter-help" className="sr-only">Search through event titles, descriptions, and locations</div>
-                {listMode === 'calendar' && (
-                  <>
-                    <label htmlFor="date-filter" className="form-label">Filter by date</label>
-                    <select
-                      id="date-filter"
-                      value={dateFilter}
-                      onChange={(e) => handleDateFilterChange(e.target.value)}
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="all">All Upcoming</option>
-                      <option value="today">Today</option>
-                      <option value="thisWeek">This Week</option>
-                      <option value="nextWeek">Next Week</option>
-                      <option value="thisMonth">This Month</option>
-                      <option value="nextMonth">Next Month</option>
-                      <option value="custom">Custom Range</option>
-                    </select>
-                  </>
-                )}
-                {listMode === 'calendar' && dateFilter === 'custom' && (
+                <label htmlFor="date-filter" className="form-label">Filter by date</label>
+                <select
+                  id="date-filter"
+                  value={dateFilter}
+                  onChange={(e) => handleDateFilterChange(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="all">All Upcoming</option>
+                  <option value="today">Today</option>
+                  <option value="thisWeek">This Week</option>
+                  <option value="nextWeek">Next Week</option>
+                  <option value="thisMonth">This Month</option>
+                  <option value="nextMonth">Next Month</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+                {dateFilter === 'custom' && (
                   <div className="space-y-2">
                     <label htmlFor="start-date" className="form-label">Start Date</label>
                     <input
@@ -909,6 +895,11 @@ export default function Home() {
                         <div className="text-sm text-gray-600 mt-1">
                           <span className="inline-block bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-medium mr-2">ENGAGE</span>
                           {e.extendedProps?.storyType && <span className="text-gray-500">{e.extendedProps.storyType}</span>}
+                        </div>
+                        <div className="text-sm text-gray-500 mt-1">
+                          {e.start ? new Date(e.start).toLocaleDateString() : 'Undated Package'}
+                          {e.start && e.start.includes('T') && ` at ${new Date(e.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
+                          {e.end && e.end !== e.start && ` - ${new Date(e.end).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
                         </div>
                         <div className="text-sm text-gray-500 mt-1">
                           {e.extendedProps?.description ? (
