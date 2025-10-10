@@ -899,7 +899,7 @@ export default function Home() {
                       onClick={() => setScheduledExpanded(!scheduledExpanded)}
                       className="w-full flex items-center justify-between px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium border-b"
                     >
-                      <span>Scheduled Events ({filteredEvents.filter(isScheduledEvent).length})</span>
+                      <span>Calendar Events ({filteredEvents.filter(isScheduledEvent).length})</span>
                       <svg 
                         className={`w-4 h-4 transition-transform ${scheduledExpanded ? 'rotate-180' : ''}`} 
                         fill="none" 
