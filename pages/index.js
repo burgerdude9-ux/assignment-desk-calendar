@@ -154,15 +154,35 @@ export default function Home() {
     try {
       console.log('Saving events to API...', newEvents.length);
       
-      // Ensure events are serializable by creating clean copies
-      const cleanEvents = newEvents.map(event => ({
-        id: event.id,
-        title: event.title,
-        start: event.start,
-        end: event.end,
-        allDay: event.allDay,
-        extendedProps: event.extendedProps || {}
-      }));
+      // Deep clean events to remove any circular references or non-serializable data
+      const cleanEvents = newEvents.map(event => {
+        // Only include known serializable properties
+        const cleanEvent = {
+          id: event.id,
+          title: event.title,
+          start: event.start,
+          end: event.end,
+          allDay: event.allDay,
+          extendedProps: {}
+        };
+        
+        // Clean extendedProps - only include plain data
+        if (event.extendedProps) {
+          cleanEvent.extendedProps = {
+            slug: event.extendedProps.slug,
+            storyType: event.extendedProps.storyType,
+            description: event.extendedProps.description,
+            location: event.extendedProps.location,
+            producer: event.extendedProps.producer,
+            status: event.extendedProps.status,
+            isPackage: event.extendedProps.isPackage
+          };
+        }
+        
+        return cleanEvent;
+      });
+      
+      console.log('Clean events for saving:', cleanEvents);
       
       const response = await fetch('/api/events', {
         method: 'POST',
@@ -182,7 +202,7 @@ export default function Home() {
       }
     } catch (error) {
       const errorText = 'Error saving events: ' + error.message;
-      console.error(errorText);
+      console.error(errorText, error.stack);
       setErrorMessage(errorText);
     }
   };
@@ -232,27 +252,8 @@ export default function Home() {
     const updatedEvents = events.filter(e => e.id !== eventId);
     setEvents(updatedEvents);
     
-    // Explicitly save to API
-    try {
-      console.log('Saving updated events after delete...');
-      const response = await fetch('/api/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedEvents)
-      });
-      
-      if (response.ok) {
-        console.log('Event successfully deleted from storage');
-      } else {
-        console.error('Failed to delete event from storage');
-        // Revert local state on error
-        setEvents(events);
-      }
-    } catch (error) {
-      console.error('Error deleting event:', error);
-      // Revert local state on error
-      setEvents(events);
-    }
+    // Explicitly save to API using the cleaned saveEvents function
+    await saveEvents(updatedEvents);
     
     setIsOpen(false);
   };
@@ -267,27 +268,8 @@ export default function Home() {
       const updatedEvents = events.map(e => e.id === selectedEvent.id ? {...e, extendedProps: {...e.extendedProps, status: 'CLAIMED', producer: claimProducer.trim()}} : e);
       setEvents(updatedEvents);
       
-      // Save to API
-      try {
-        console.log('Saving updated events after claim...');
-        const response = await fetch('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedEvents)
-        });
-        
-        if (response.ok) {
-          console.log('Event successfully claimed and saved');
-        } else {
-          console.error('Failed to save claimed event');
-          // Revert local state on error
-          setEvents(events);
-        }
-      } catch (error) {
-        console.error('Error claiming event:', error);
-        // Revert local state on error
-        setEvents(events);
-      }
+      // Use the cleaned saveEvents function
+      await saveEvents(updatedEvents);
       
       setIsClaiming(false);
       setIsOpen(false);
@@ -295,10 +277,30 @@ export default function Home() {
   };
 
   const handleEdit = () => {
-    setEditingEvent(selectedEvent);
+    // Ensure editingEvent contains only clean data
+    const cleanEvent = {
+      id: selectedEvent.id,
+      title: selectedEvent.title,
+      start: selectedEvent.start,
+      end: selectedEvent.end,
+      allDay: selectedEvent.allDay,
+      extendedProps: {
+        slug: selectedEvent.extendedProps?.slug,
+        storyType: selectedEvent.extendedProps?.storyType,
+        description: selectedEvent.extendedProps?.description,
+        location: selectedEvent.extendedProps?.location,
+        producer: selectedEvent.extendedProps?.producer,
+        status: selectedEvent.extendedProps?.status,
+        isPackage: selectedEvent.extendedProps?.isPackage
+      },
+      startStr: selectedEvent.startStr,
+      endStr: selectedEvent.endStr
+    };
+    
+    setEditingEvent(cleanEvent);
     setIsEditing(true);
     // Populate form with event data
-    const event = selectedEvent;
+    const event = cleanEvent;
     const startTime = event.startStr && event.startStr.includes('T') ? event.startStr.split('T')[1].substring(0,5) : '';
     const endTime = event.endStr && event.endStr.includes('T') ? event.endStr.split('T')[1].substring(0,5) : '';
     
@@ -364,15 +366,14 @@ export default function Home() {
     const hasTime = !!startTime;
     
     if (isEditing && editingEvent) {
-      // Update existing event
+      // Update existing event - create clean updated event
       const updatedEvent = {
-        ...editingEvent,
+        id: editingEvent.id,
         title,
         start: hasDate ? (hasTime ? `${form.date}T${startTime}` : form.date) : null,
         end: hasDate && endTime ? `${form.date}T${endTime}` : null,
         allDay: hasDate && !hasTime,
         extendedProps: {
-          ...editingEvent.extendedProps,
           slug: form.slug,
           storyType: form.storyType,
           description: form.description,
@@ -509,16 +510,24 @@ export default function Home() {
 
       return true;
     }).sort((a, b) => {
-      // Undated packages (no date) come first
-      const aIsPackage = a.extendedProps?.isPackage || !a.start;
-      const bIsPackage = b.extendedProps?.isPackage || !b.start;
+      // Undated packages (no date) come FIRST - completely separate from dated events
+      const aIsUndated = a.extendedProps?.isPackage || !a.start;
+      const bIsUndated = b.extendedProps?.isPackage || !b.start;
       
-      if (aIsPackage && !bIsPackage) return -1;
-      if (!aIsPackage && bIsPackage) return 1;
+      // If one is undated and the other is dated, undated comes first
+      if (aIsUndated && !bIsUndated) return -1;
+      if (!aIsUndated && bIsUndated) return 1;
       
-      // Then sort by date (earliest first)
-      const aDate = a.start ? new Date(a.start) : new Date('2099-12-31');
-      const bDate = b.start ? new Date(b.start) : new Date('2099-12-31');
+      // If both are undated, sort by title/slug
+      if (aIsUndated && bIsUndated) {
+        const aTitle = formatSlug(a.title || a.extendedProps?.slug) || 'Untitled';
+        const bTitle = formatSlug(b.title || b.extendedProps?.slug) || 'Untitled';
+        return aTitle.localeCompare(bTitle);
+      }
+      
+      // Both are dated events - sort by date (earliest first)
+      const aDate = new Date(a.start);
+      const bDate = new Date(b.start);
       return aDate - bDate;
     });
   }, [events, engageEvents, keywordFilter, dateFilter, customStartDate, customEndDate, listMode]);
@@ -561,7 +570,26 @@ export default function Home() {
                   {isLoadingEngage ? 'Loading...' : 'Engage'}
                 </button>
                 <button
-                  onClick={() => setIsNewOpen(true)}
+                  onClick={() => {
+                    setForm({ 
+                      slug: '', 
+                      storyType: '', 
+                      description: '', 
+                      location: '', 
+                      date: new Date().toISOString().split('T')[0], 
+                      startHour: '', 
+                      startMin: '', 
+                      startAmpm: '', 
+                      endHour: '', 
+                      endMin: '', 
+                      endAmpm: '', 
+                      producer: '',
+                      status: 'AVAILABLE' 
+                    });
+                    setIsEditing(false);
+                    setEditingEvent(null);
+                    setIsNewOpen(true);
+                  }}
                   className="mr-2 bg-white text-red-600 border border-red-900 px-4 py-2 rounded hover:bg-red-50"
                 >
                   New Event
@@ -643,148 +671,189 @@ export default function Home() {
             <div className="p-2 overflow-auto">
               {filteredEvents.length === 0 ? (
                 <div className="p-4 text-gray-500">No events match the filters</div>
-              ) : (
+              ) : listMode === 'engage' ? (
+                // Engage events - simple list
                 filteredEvents.map(e => (
                   <div key={e.id} className="p-3 border-b hover:bg-gray-50 cursor-pointer" onClick={() => {
-                    if (listMode === 'engage') {
-                      // Import Engage event: populate form and open new event modal
-                      const title = e.title || '';
-                      const desc = e.extendedProps.description || '';
-                      let cleanDesc = desc;
-                      if (desc.toLowerCase().startsWith(title.toLowerCase())) {
-                        cleanDesc = desc.substring(title.length).trim();
-                        cleanDesc = cleanDesc.replace(/^[\s,:;-]+/, '');
-                      }
-                      const startTimeStr = e.start.includes('T') ? e.start.split('T')[1].substring(0,5) : '';
-                      const endTimeStr = e.end && e.end.includes('T') ? e.end.split('T')[1].substring(0,5) : '';
-                      
-                      // Parse start time
-                      let startHour = '', startMin = '', startAmpm = '';
-                      if (startTimeStr) {
-                        const [hourStr, min] = startTimeStr.split(':');
-                        const hour = parseInt(hourStr);
-                        startAmpm = hour >= 12 ? 'PM' : 'AM';
-                        startHour = (hour % 12 || 12).toString();
-                        startMin = min;
-                      }
-                      
-                      // Parse end time
-                      let endHour = '', endMin = '', endAmpm = '';
-                      if (endTimeStr) {
-                        const [hourStr, min] = endTimeStr.split(':');
-                        const hour = parseInt(hourStr);
-                        endAmpm = hour >= 12 ? 'PM' : 'AM';
-                        endHour = (hour % 12 || 12).toString();
-                        endMin = min;
-                      }
-                      
-                      setForm({
-                        slug: formatSlug(e.extendedProps.slug || e.title || ''),
-                        storyType: e.extendedProps.storyType || '',
-                        description: cleanDesc,
-                        location: e.extendedProps.location || '',
-                        date: e.start.split('T')[0],
-                        startHour,
-                        startMin,
-                        startAmpm,
-                        endHour,
-                        endMin,
-                        endAmpm,
-                        producer: '',
-                        status: 'AVAILABLE',
-                      });
-                      setIsNewOpen(true);
-                      setIsListOpen(false);
-                    } else {
-                      // Handle calendar events
-                      if (e.extendedProps?.isPackage) {
-                        // Undated package - open details modal
-                        setSelectedEvent({
-                          id: e.id,
-                          extendedProps: e.extendedProps || {},
-                          startStr: null,
-                          endStr: '',
-                          allDay: false
-                        });
-                        setIsListOpen(false);
-                        setIsOpen(true);
-                      } else {
-                        // Regular event - navigate calendar to date and open details
-                        try {
-                          if (calendarRef.current && calendarRef.current.getApi) {
-                            calendarRef.current.getApi().gotoDate(e.start);
-                          }
-                        } catch (err) {
-                          console.error('Failed to navigate to date', err);
-                        }
-                        // set a selectedEvent-like object that the dialog expects
-                        setSelectedEvent({
-                          id: e.id,
-                          extendedProps: e.extendedProps || {},
-                          startStr: e.start,
-                          endStr: e.end || ''
-                        });
-                        setIsListOpen(false);
-                        setIsOpen(true);
-                      }
+                    // Import Engage event: populate form and open new event modal
+                    const title = e.title || '';
+                    const desc = e.extendedProps.description || '';
+                    let cleanDesc = desc;
+                    if (desc.toLowerCase().startsWith(title.toLowerCase())) {
+                      cleanDesc = desc.substring(title.length).trim();
+                      cleanDesc = cleanDesc.replace(/^[\s,:;-]+/, '');
                     }
+                    const startTimeStr = e.start.includes('T') ? e.start.split('T')[1].substring(0,5) : '';
+                    const endTimeStr = e.end && e.end.includes('T') ? e.end.split('T')[1].substring(0,5) : '';
+                    
+                    // Parse start time
+                    let startHour = '', startMin = '', startAmpm = '';
+                    if (startTimeStr) {
+                      const [hourStr, min] = startTimeStr.split(':');
+                      const hour = parseInt(hourStr);
+                      startAmpm = hour >= 12 ? 'PM' : 'AM';
+                      startHour = (hour % 12 || 12).toString();
+                      startMin = min;
+                    }
+                    
+                    // Parse end time
+                    let endHour = '', endMin = '', endAmpm = '';
+                    if (endTimeStr) {
+                      const [hourStr, min] = endTimeStr.split(':');
+                      const hour = parseInt(hourStr);
+                      endAmpm = hour >= 12 ? 'PM' : 'AM';
+                      endHour = (hour % 12 || 12).toString();
+                      endMin = min;
+                    }
+                    
+                    setForm({
+                      slug: formatSlug(e.extendedProps.slug || e.title || ''),
+                      storyType: e.extendedProps.storyType || '',
+                      description: cleanDesc,
+                      location: e.extendedProps.location || '',
+                      date: e.start.split('T')[0],
+                      startHour,
+                      startMin,
+                      startAmpm,
+                      endHour,
+                      endMin,
+                      endAmpm,
+                      producer: '',
+                      status: 'AVAILABLE',
+                    });
+                    setIsNewOpen(true);
+                    setIsListOpen(false);
                   }}>
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="font-medium text-gray-900">{formatSlug(e.title || e.extendedProps?.slug) || 'Untitled'}</div>
-                        {listMode === 'engage' ? (
-                          <div className="text-sm text-gray-600 mt-1">
-                            <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium mr-2">ENGAGE</span>
-                            {e.extendedProps?.storyType && <span className="text-gray-500">{e.extendedProps.storyType}</span>}
-                          </div>
-                        ) : (
-                          <div className="text-sm text-gray-600 mt-1">
-                            {e.extendedProps?.producer && <span className="mr-2">{e.extendedProps.producer}</span>}
-                            {e.extendedProps?.status && (
-                              <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                                e.extendedProps.status === 'AVAILABLE' ? 'bg-green-100 text-green-800' :
-                                e.extendedProps.status === 'CLAIMED' ? 'bg-yellow-100 text-yellow-800' :
-                                e.extendedProps.status === 'IN_PROGRESS' ? 'bg-orange-100 text-orange-800' :
-                                e.extendedProps.status === 'APPROVED' ? 'bg-purple-100 text-purple-800' :
-                                e.extendedProps.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {e.extendedProps.status}
-                              </span>
-                            )}
-                          </div>
-                        )}
+                        <div className="text-sm text-gray-600 mt-1">
+                          <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium mr-2">ENGAGE</span>
+                          {e.extendedProps?.storyType && <span className="text-gray-500">{e.extendedProps.storyType}</span>}
+                        </div>
                         <div className="text-sm text-gray-500 mt-1">
-                          {listMode === 'engage' ? (
-                            e.extendedProps?.description ? (
-                              <div className="line-clamp-2">{e.extendedProps.description}</div>
-                            ) : null
-                          ) : (
-                            <>
-                              {e.extendedProps?.isPackage ? (
-                                <span className="text-purple-600 font-medium">News Package</span>
-                              ) : (
-                                <>
-                                  {e.start ? new Date(e.start).toLocaleDateString() : 'Undated Package'}
-                                  {e.start && e.start.includes('T') && ` at ${new Date(e.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
-                                  {e.end && e.end !== e.start && ` - ${new Date(e.end).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
-                                </>
-                              )}
-                            </>
-                          )}
+                          {e.extendedProps?.description ? (
+                            <div className="line-clamp-2">{e.extendedProps.description}</div>
+                          ) : null}
                         </div>
                         {e.extendedProps?.location && <div className="text-sm text-gray-500">{e.extendedProps.location}</div>}
                       </div>
-                      {listMode === 'engage' && (
-                        <div className="ml-2 text-blue-600">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                        </div>
-                      )}
+                      <div className="ml-2 text-blue-600">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 ))
+              ) : (
+                // Calendar events - separated into undated packages and dated events
+                <>
+                  {/* Undated packages section */}
+                  {filteredEvents.filter(e => e.extendedProps?.isPackage || !e.start).length > 0 && (
+                    <div className="mb-4">
+                      <div className="px-3 py-2 bg-purple-50 border-l-4 border-purple-400 text-purple-800 text-sm font-medium">
+                        📦 Undated Packages ({filteredEvents.filter(e => e.extendedProps?.isPackage || !e.start).length})
+                      </div>
+                      {filteredEvents.filter(e => e.extendedProps?.isPackage || !e.start).map(e => (
+                        <div key={e.id} className="p-3 border-b hover:bg-gray-50 cursor-pointer bg-purple-25" onClick={() => {
+                          // Handle undated packages
+                          setSelectedEvent({
+                            id: e.id,
+                            extendedProps: e.extendedProps || {},
+                            startStr: null,
+                            endStr: '',
+                            allDay: false
+                          });
+                          setIsListOpen(false);
+                          setIsOpen(true);
+                        }}>
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">{formatSlug(e.title || e.extendedProps?.slug) || 'Untitled'}</div>
+                              <div className="text-sm text-gray-600 mt-1">
+                                {e.extendedProps?.producer && <span className="mr-2">{e.extendedProps.producer}</span>}
+                                {e.extendedProps?.status && (
+                                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                                    e.extendedProps.status === 'AVAILABLE' ? 'bg-green-100 text-green-800' :
+                                    e.extendedProps.status === 'CLAIMED' ? 'bg-yellow-100 text-yellow-800' :
+                                    e.extendedProps.status === 'IN_PROGRESS' ? 'bg-orange-100 text-orange-800' :
+                                    e.extendedProps.status === 'APPROVED' ? 'bg-purple-100 text-purple-800' :
+                                    e.extendedProps.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {e.extendedProps.status}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-500 mt-1">
+                                <span className="text-purple-600 font-medium">News Package</span>
+                              </div>
+                              {e.extendedProps?.location && <div className="text-sm text-gray-500">{e.extendedProps.location}</div>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Dated events section */}
+                  {filteredEvents.filter(e => !(e.extendedProps?.isPackage || !e.start)).length > 0 && (
+                    <div>
+                      <div className="px-3 py-2 bg-blue-50 border-l-4 border-blue-400 text-blue-800 text-sm font-medium">
+                        📅 Scheduled Events ({filteredEvents.filter(e => !(e.extendedProps?.isPackage || !e.start)).length})
+                      </div>
+                      {filteredEvents.filter(e => !(e.extendedProps?.isPackage || !e.start)).map(e => (
+                        <div key={e.id} className="p-3 border-b hover:bg-gray-50 cursor-pointer" onClick={() => {
+                          // Regular event - navigate calendar to date and open details
+                          try {
+                            if (calendarRef.current && calendarRef.current.getApi) {
+                              calendarRef.current.getApi().gotoDate(e.start);
+                            }
+                          } catch (err) {
+                            console.error('Failed to navigate to date', err);
+                          }
+                          // set a selectedEvent-like object that the dialog expects
+                          setSelectedEvent({
+                            id: e.id,
+                            extendedProps: e.extendedProps || {},
+                            startStr: e.start,
+                            endStr: e.end || ''
+                          });
+                          setIsListOpen(false);
+                          setIsOpen(true);
+                        }}>
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">{formatSlug(e.title || e.extendedProps?.slug) || 'Untitled'}</div>
+                              <div className="text-sm text-gray-600 mt-1">
+                                {e.extendedProps?.producer && <span className="mr-2">{e.extendedProps.producer}</span>}
+                                {e.extendedProps?.status && (
+                                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                                    e.extendedProps.status === 'AVAILABLE' ? 'bg-green-100 text-green-800' :
+                                    e.extendedProps.status === 'CLAIMED' ? 'bg-yellow-100 text-yellow-800' :
+                                    e.extendedProps.status === 'IN_PROGRESS' ? 'bg-orange-100 text-orange-800' :
+                                    e.extendedProps.status === 'APPROVED' ? 'bg-purple-100 text-purple-800' :
+                                    e.extendedProps.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {e.extendedProps.status}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-500 mt-1">
+                                {e.start ? new Date(e.start).toLocaleDateString() : 'Undated Package'}
+                                {e.start && e.start.includes('T') && ` at ${new Date(e.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
+                                {e.end && e.end !== e.start && ` - ${new Date(e.end).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}`}
+                              </div>
+                              {e.extendedProps?.location && <div className="text-sm text-gray-500">{e.extendedProps.location}</div>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
