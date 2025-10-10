@@ -707,7 +707,7 @@ export default function Home() {
                   setEditingEvent(null);
                   setIsNewOpen(true);
                 }}
-                className="ml-2 bg-white text-[#D1190D] border border-[#B0170B] px-4 py-2 rounded hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#D1190D]"
+                className="ml-2 px-4 py-2 rounded border bg-white text-[#D1190D] border-[#8a8a8d] hover:bg-red-50 active:bg-gray-100 active:scale-95 transition-all duration-75"
                 aria-label="Create new event"
               >
                 New Event
@@ -715,7 +715,7 @@ export default function Home() {
               <button
                 onClick={fetchEngageEvents}
                 disabled={isLoadingEngage}
-                className={`ml-2 px-4 py-2 rounded border ${isLoadingEngage ? 'bg-[#800000] text-white' : 'bg-white text-[#D1190D] border-[#B0170B] hover:bg-red-50'} disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#D1190D]`}
+                className={`ml-2 px-4 py-2 rounded border ${isLoadingEngage ? 'bg-[#8a8a8d] text-white' : 'bg-white text-[#D1190D] border-[#8a8a8d] hover:bg-red-50 active:bg-gray-100 active:scale-95'} disabled:opacity-50 transition-all duration-75`}
                 aria-label={isLoadingEngage ? 'Loading Engage events' : 'Import events from Engage'}
               >
                 {isLoadingEngage ? 'Loading...' : 'Engage'}
@@ -725,28 +725,29 @@ export default function Home() {
                   setListMode('calendar');
                   setIsListOpen(true);
                 }}
-                className={`ml-2 px-4 py-2 rounded border ${isListOpen && listMode === 'calendar' ? 'bg-[#800000] text-white border-[#800000]' : 'bg-white text-[#D1190D] border-[#B0170B] hover:bg-red-50'} focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#D1190D]`}
+                className={`ml-2 px-4 py-2 rounded border bg-white text-[#D1190D] border-[#8a8a8d] hover:bg-red-50 active:bg-gray-100 active:scale-95 transition-all duration-75`}
                 aria-label="View packages list"
                 aria-pressed={isListOpen && listMode === 'calendar'}
               >
                 Packages
               </button>
-              <button
-                onClick={() => setView('timeGridWeek')}
-                className={`ml-2 px-4 py-2 rounded border ${view === 'timeGridWeek' ? 'bg-[#800000] text-white border-[#800000]' : 'bg-white text-[#D1190D] border-[#B0170B] hover:bg-red-50'} focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#D1190D]`}
-                aria-label="Switch to week view"
-                aria-pressed={view === 'timeGridWeek'}
+              <div
+                onClick={() => setView(view === 'timeGridWeek' ? 'dayGridMonth' : 'timeGridWeek')}
+                className="ml-2 bg-white border border-[#8a8a8d] rounded px-1 py-2 inline-flex cursor-pointer hover:bg-red-50 active:bg-gray-100 active:scale-95 transition-all duration-75 relative overflow-hidden"
+                aria-label={`Switch to ${view === 'timeGridWeek' ? 'month' : 'week'} view`}
+                role="button"
+                tabIndex={0}
               >
-                Week
-              </button>
-              <button
-                onClick={() => setView('dayGridMonth')}
-                className={`ml-2 px-4 py-2 rounded border ${view === 'dayGridMonth' ? 'bg-[#800000] text-white border-[#800000]' : 'bg-white text-[#D1190D] border-[#B0170B] hover:bg-red-50'} focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#D1190D]`}
-                aria-label="Switch to month view"
-                aria-pressed={view === 'dayGridMonth'}
-              >
-                Month
-              </button>
+                <div className={`absolute top-1 bottom-1 bg-[#D1190D] transition-all duration-200 ease-in-out rounded ${view === 'dayGridMonth' ? 'left-1 right-1/2' : 'left-1/2 right-1'}`}></div>
+                <div className="relative flex w-full">
+                  <div className="flex-1 flex items-center justify-center px-3 py-0">
+                    <span className={`${view === 'dayGridMonth' ? 'text-white' : 'text-[#D1190D]'}`}>Month</span>
+                  </div>
+                  <div className="flex-1 flex items-center justify-center px-3 py-0">
+                    <span className={`${view === 'timeGridWeek' ? 'text-white' : 'text-[#D1190D]'}`}>Week</span>
+                  </div>
+                </div>
+              </div>
             </nav>
           </div>
         </div>
@@ -765,7 +766,7 @@ export default function Home() {
           <div className="h-full bg-white shadow-lg overflow-hidden flex flex-col">
             <div className="p-4 border-b flex items-start justify-between">
               <div>
-                <h2 id="events-list-title" className="text-lg font-bold dialog-title">{listMode === 'engage' ? 'Engage Events' : 'Packages'}</h2>
+                <h2 id="events-list-title" className="text-xl font-bold dialog-title">{listMode === 'engage' ? 'Engage Events' : 'Packages'}</h2>
                 <p className="text-sm text-gray-500" aria-live="polite">{filteredEvents.length} total</p>
               </div>
               <button aria-label="Close events list" onClick={() => setIsListOpen(false)} className="text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#D1190D] focus:ring-offset-2 rounded">✕</button>
@@ -824,7 +825,7 @@ export default function Home() {
                     />
                     <button
                       onClick={handleApplyCustomDates}
-                      className="w-full px-4 py-2 bg-[#D1190D] text-white rounded hover:bg-[#B0170B] focus:outline-none focus:ring-2 focus:ring-[#D1190D] focus:ring-offset-2"
+                      className="w-full px-4 py-2 bg-[#D1190D] text-white rounded hover:bg-[#8a8a8d] focus:outline-none focus:ring-2 focus:ring-[#D1190D] focus:ring-offset-2"
                     >
                       Apply
                     </button>
@@ -1226,7 +1227,7 @@ export default function Home() {
                       />
                     </div>
                     <div className="mt-4 flex gap-2">
-                      <button onClick={handleClaimSubmit} className="bg-white text-[#D1190D] border border-[#B0170B] px-4 py-2 rounded hover:bg-red-50">Claim Event</button>
+                      <button onClick={handleClaimSubmit} className="bg-white text-[#D1190D] border border-[#8a8a8d] px-4 py-2 rounded hover:bg-red-50">Claim Event</button>
                       <button onClick={() => setIsClaiming(false)} className="bg-gray-600 text-white px-4 py-2 rounded">Cancel</button>
                     </div>
                   </div>
@@ -1248,8 +1249,8 @@ export default function Home() {
                       <p><strong>Available</strong></p>
                     )}
                     <div className="mt-4 flex gap-2">
-                      <button onClick={handleEdit} className="bg-white text-[#D1190D] border border-[#B0170B] px-4 py-2 rounded hover:bg-red-50">Edit</button>
-                      <button onClick={handleClaim} disabled={!!selectedEvent.extendedProps.producer} className="bg-white text-[#D1190D] border border-[#B0170B] px-4 py-2 rounded hover:bg-red-50">Claim</button>
+                      <button onClick={handleEdit} className="bg-white text-[#D1190D] border border-[#8a8a8d] px-4 py-2 rounded hover:bg-red-50">Edit</button>
+                      <button onClick={handleClaim} disabled={!!selectedEvent.extendedProps.producer} className="bg-white text-[#D1190D] border border-[#8a8a8d] px-4 py-2 rounded hover:bg-red-50">Claim</button>
                       <button onClick={handleDelete} className="bg-[#D1190D] text-white px-4 py-2 rounded">Delete</button>
                     </div>
                   </div>
@@ -1437,7 +1438,7 @@ export default function Home() {
                 <button 
                   type="submit" 
                   disabled={isSavingEvent}
-                  className="bg-white text-[#D1190D] border border-[#B0170B] px-4 py-2 rounded hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-[#D1190D] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-white text-[#D1190D] border border-[#8a8a8d] px-4 py-2 rounded hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-[#D1190D] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSavingEvent ? 'Saving...' : (isEditing ? 'Update' : 'Create')}
                 </button>
@@ -1449,7 +1450,7 @@ export default function Home() {
                     setEditingEvent(null); 
                     setFormErrors({});
                   }}
-                  className="bg-[#D1190D] text-white px-4 py-2 rounded hover:bg-[#B0170B] focus:outline-none focus:ring-2 focus:ring-[#D1190D] focus:ring-offset-2"
+                  className="bg-[#D1190D] text-white px-4 py-2 rounded hover:bg-[#8a8a8d] focus:outline-none focus:ring-2 focus:ring-[#D1190D] focus:ring-offset-2"
                   disabled={isSavingEvent}
                 >
                   Cancel

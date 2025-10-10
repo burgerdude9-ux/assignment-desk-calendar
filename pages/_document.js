@@ -146,7 +146,7 @@ class MyDocument extends Document {
             .fc-prev-button,
             .fc-next-button {
               background-color: #D1190D !important;
-              border-color: #B0170B !important;
+              border-color: #8a8a8d !important;
               color: white !important;
               font-family: 'Roboto Condensed', sans-serif !important;
               font-weight: 700 !important;
@@ -159,7 +159,7 @@ class MyDocument extends Document {
             .fc-today-button:hover,
             .fc-prev-button:hover,
             .fc-next-button:hover {
-              background-color: #B0170B !important;
+              background-color: #8a8a8d !important;
               transform: translateY(-1px) !important;
               box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
             }
